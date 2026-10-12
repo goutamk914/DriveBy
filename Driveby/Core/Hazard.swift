@@ -1,15 +1,6 @@
-//  Hazard.swift — Driveby
-//  Phase 7: the civic payload. Private trips → anonymised aggregate → a public
-//  map of where drivers brake hardest. k-anonymity: a cell is published only
-//  when it has ≥ 5 events from ≥ 3 distinct drivers, and the published row holds
-//  counts only — never user IDs, never trip-level timestamps.
-//  The server-side twin is `publish_hazard_cells()` in db/schema.sql;
-//  the Python twin is processor/hazard.py. All three compute the SAME cell key.
-
 import Foundation
 
 enum HazardGrid {
-    /// cell_key = f"{round(lat/CELL)*CELL:.4f}_{round(lon/CELL)*CELL:.4f}"  (Python round = half-to-even)
     static func cellKey(lat: Double, lon: Double, cell: Double = Thresholds.hazardCell) -> String {
         let (clat, clon) = cellCenter(lat: lat, lon: lon, cell: cell)
         return String(format: "%.4f_%.4f", clat, clon)
@@ -20,7 +11,6 @@ enum HazardGrid {
     }
 }
 
-/// A row of the public `hazard_cells` table (no user linkage by design).
 struct HazardCell: Codable, Identifiable, Hashable, Sendable {
     var cellKey: String
     var lat: Double
@@ -32,7 +22,6 @@ struct HazardCell: Codable, Identifiable, Hashable, Sendable {
 
     var id: String { cellKey }
 
-    /// UI copy straight from the Build Guide: "This intersection: 7 hard-braking events from 3 drivers".
     var summary: String {
         let kind = dominantKind.flatMap(EventKind.init(rawValue:))
         let noun = kind == .harshCorner ? "sharp-turn" : "hard-braking"
@@ -45,7 +34,6 @@ struct HazardCell: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// Your own contribution to a cell — visible only to you, used to show the mechanic working honestly.
 struct LocalHazardCell: Identifiable, Hashable, Sendable {
     var cellKey: String
     var lat: Double
@@ -57,8 +45,6 @@ struct LocalHazardCell: Identifiable, Hashable, Sendable {
 
     var dominantKind: EventKind? { kindCounts.max { a, b in a.value == b.value ? a.key.rawValue > b.key.rawValue : a.value < b.value }?.key }
 
-    /// Progress toward the k-anonymity publication threshold (your data alone can't publish a cell:
-    /// it is one driver, and k requires 3).
     var eventsTowardK: String { "\(min(eventCount, Thresholds.kEvents))/\(Thresholds.kEvents) events" }
 }
 
@@ -68,10 +54,9 @@ enum HazardAggregator {
         var lon: Double
         var kind: EventKind
         var driveId: UUID
-        var userKey: String   // only used for counting distinct users; never stored in output
+        var userKey: String
     }
 
-    /// Local aggregation of your own events (all cells, regardless of k).
     static func localCells(_ contributions: [Contribution]) -> [LocalHazardCell] {
         var cells: [String: LocalHazardCell] = [:]
         var drives: [String: Set<UUID>] = [:]
@@ -88,8 +73,6 @@ enum HazardAggregator {
         return cells.values.sorted { $0.eventCount > $1.eventCount }
     }
 
-    /// Reference implementation of the server function: only cells clearing BOTH thresholds survive,
-    /// and the output carries counts only.
     static func publish(_ contributions: [Contribution], kEvents: Int = Thresholds.kEvents, kUsers: Int = Thresholds.kUsers,
                         now: Date = Date()) -> [HazardCell] {
         var events: [String: Int] = [:]
@@ -113,10 +96,7 @@ enum HazardAggregator {
     }
 }
 
-// MARK: - GeoJSON export (Step 7.3 — "the format county traffic engineering already uses")
-
 enum GeoJSON {
-    /// FeatureCollection of square polygons (one per published cell), properties = counts only.
     static func hazardFeatureCollection(_ cells: [HazardCell], cell: Double = Thresholds.hazardCell,
                                         generatedAt: Date = Date()) -> Data {
         let iso = ISO8601DateFormatter()

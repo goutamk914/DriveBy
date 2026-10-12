@@ -1,12 +1,3 @@
-//  OBDManager.swift — Driveby
-//  Decision 4: an ELM327 Bluetooth LE dongle (~$15) turns n≈9 tank-to-tank points into
-//  per-trip fuel consumption — hundreds of validation points.
-//  iOS can only talk to BLE (or Wi-Fi) adapters, NOT "Bluetooth Classic" ones — buy a BLE model
-//  (e.g. Vgate iCar Pro BLE, Veepeak OBDCheck BLE+, OBDLink CX).
-//
-//  Polls 010D speed, 010C RPM and 015E fuel rate (or 0110 MAF if 5E isn't supported) and logs
-//  `obd` lines into the drive's sensors.jsonl on the same monotonic clock.
-
 import CoreBluetooth
 import Foundation
 import Observation
@@ -86,17 +77,13 @@ final class OBDManager {
     func connect(_ id: UUID) { phase = .connecting; preferredPeripheral = id.uuidString; link.connect(id) }
     func disconnect() { link.disconnect() }
 
-    /// Start writing `obd` samples into the drive log (t relative to `t0` on the monotonic clock).
     func startLogging(writer: SampleFileWriter, t0: TimeInterval) { link.startLogging(writer: writer, t0: t0) }
     func stopLogging() { link.stopLogging() }
 
-    /// Week-0 compatibility check: "Which PIDs respond? Log the answer."
     func testPIDs() { link.testPIDs() }
 
     var isReady: Bool { phase == .ready }
 }
-
-// MARK: - Transport (runs on its own serial queue)
 
 final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @unchecked Sendable {
     enum Event {
@@ -129,13 +116,12 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
     private var initScheduled = false
     private var pendingConnect: UUID?
 
-    /// Service/characteristic pairs used by common ELM327 BLE clones.
     private static let knownServices = [CBUUID(string: "FFF0"), CBUUID(string: "FFE0"), CBUUID(string: "18F0"),
                                         CBUUID(string: "E7810A71-73AE-499D-8C15-FAA9AEF0C3F2")]
 
     func scan() {
         queue.async {
-            guard self.central.state == .poweredOn else { self.pendingScan = true; return }  // resumes in didUpdateState
+            guard self.central.state == .poweredOn else { self.pendingScan = true; return }
             self.central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         }
     }
@@ -183,8 +169,6 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
         }
     }
 
-    // MARK: Central
-
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         onEvent?(.state(central.state))
         guard central.state == .poweredOn else { return }
@@ -219,8 +203,6 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
         onEvent?(.disconnected(error?.localizedDescription))
     }
 
-    // MARK: Peripheral
-
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         for s in peripheral.services ?? [] { peripheral.discoverCharacteristics(nil, for: s) }
     }
@@ -237,7 +219,6 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
             }
         }
         if writeChar != nil && notifyChar != nil && pending == nil && supported.isEmpty && !initScheduled {
-            // Give the adapter a moment, then run the ELM327 init sequence (once — this callback fires per service).
             initScheduled = true
             queue.asyncAfter(deadline: .now() + 0.5) { self.initialize() }
         }
@@ -255,8 +236,6 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
             cb?(r)
         }
     }
-
-    // MARK: ELM327 protocol
 
     private func send(_ cmd: String, wait: Double = 2.0, _ completion: @escaping (String) -> Void) {
         guard let p = peripheral, let c = writeChar else { completion(""); return }
@@ -295,7 +274,7 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
 
     private func querySupport(_ done: @escaping (Set<String>) -> Void) {
         var all = Set<String>()
-        send("0100", wait: 6) { r0 in   // first query can take seconds while the protocol is detected
+        send("0100", wait: 6) { r0 in
             all.formUnion(OBDParser.supportedPIDs(r0, base: 0x00))
             self.send("0120") { r1 in
                 all.formUnion(OBDParser.supportedPIDs(r1, base: 0x20))
@@ -308,7 +287,6 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
         }
     }
 
-    /// One cycle: speed, RPM, fuel rate (or MAF). ≈1–2 Hz depending on the adapter.
     private func pollOnce(_ done: @escaping (OBDSample) -> Void) {
         let useFuelRate = supported.isEmpty || supported.contains(OBDPID.fuelRate.rawValue)
         var sample = OBDSample(t: MonotonicClock.now() - t0)
@@ -320,7 +298,6 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
                 self.send(fuelPID.command, wait: 1) { r in
                     if useFuelRate { sample.fuelLph = OBDParser.decode(.fuelRate, raw: r) }
                     else { sample.maf = OBDParser.decode(.maf, raw: r) }
-                    // If fuel rate turns out unsupported in practice, fall back to MAF next cycle.
                     if useFuelRate && sample.fuelLph == nil && OBDParser.isNoData(r) {
                         self.supported.remove(OBDPID.fuelRate.rawValue)
                         self.supported.insert(OBDPID.maf.rawValue)

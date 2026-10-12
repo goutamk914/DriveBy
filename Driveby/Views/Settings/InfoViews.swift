@@ -1,6 +1,3 @@
-//  InfoViews.swift — Driveby
-//  Account sign-in, privacy explainer, safety rules, about (open-source + AI disclosure + 2.0), developer.
-
 import SwiftUI
 
 struct AccountView: View {
@@ -63,17 +60,17 @@ struct PrivacyView: View {
                     .font(.headline)
             }
             Section("Never leaves your phone") {
-                row("video", "Full drive video", "Already blurred when written. You can delete it any time; it auto-deletes after the period you choose.")
-                row("waveform.path.ecg", "Raw sensor log", "Every GPS fix and motion sample stays local. Export it yourself if you want to.")
-                row("eye.slash", "Unblurred frames", "Don't exist. The camera's frames go through the blur step in memory; only the blurred version is encoded.")
+                row("Full drive video", "Already blurred when written. You can delete it any time; it auto-deletes after the period you choose.")
+                row("Raw sensor log", "Every GPS fix and motion sample stays local. Export it yourself if you want to.")
+                row("Unblurred frames", "Don't exist. The camera's frames go through the blur step in memory; only the blurred version is encoded.")
             }
             Section("Synced to your private account (if you sign in)") {
-                row("chart.bar", "Drive summaries & scores", "Readable only by you (row-level security).")
-                row("mappin", "Event locations and numbers", "Used for your history, and — pooled with k-anonymity — for the public hazard map.")
-                row("film", "Blurred event clips (opt-in)", "Off by default.")
+                row("Drive summaries & scores", "Readable only by you (row-level security).")
+                row("Event locations and numbers", "Used for your history, and — pooled with k-anonymity — for the public hazard map.")
+                row("Blurred event clips (opt-in)", "Off by default.")
             }
             Section("Public") {
-                row("map", "Hazard cells", "Only cells with ≥\(Thresholds.kEvents) events from ≥\(Thresholds.kUsers) drivers, and only counts. No user IDs, no trip times. You can opt out.")
+                row("Hazard cells", "Only cells with ≥\(Thresholds.kEvents) events from ≥\(Thresholds.kUsers) drivers, and only counts. No user IDs, no trip times. You can opt out.")
             }
             Section("What Driveby will never do") {
                 Text("Read, store or look up licence plates. Track other drivers. Rank you publicly. Sell data. Record audio in your car.")
@@ -82,13 +79,11 @@ struct PrivacyView: View {
         .navigationTitle("What leaves my phone")
     }
 
-    private func row(_ icon: String, _ title: String, _ detail: String) -> some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.semibold))
-                Text(detail).font(.footnote).foregroundStyle(.secondary)
-            }
-        } icon: { Image(systemName: icon) }
+    private func row(_ title: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.subheadline.weight(.semibold))
+            Text(detail).font(.footnote).foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -97,21 +92,21 @@ struct SafetyRulesView: View {
     var onAccept: (() -> Void)? = nil
     @State private var agreed = false
 
-    struct Rule: Identifiable { var symbol: String; var text: String; var id: String { text } }
+    struct Rule: Identifiable { var text: String; var id: String { text } }
 
     static let rules: [Rule] = [
-        Rule(symbol: "hand.raised.fill", text: "The driver does not touch the phone while the car is moving."),
-        Rule(symbol: "person.2.fill", text: "New drivers practise only with a licensed adult; a passenger operates the device."),
-        Rule(symbol: "record.circle", text: "Start recording before shifting into drive; stop after parking."),
-        Rule(symbol: "iphone.gen3", text: "Mount the phone where it doesn't block your view — centred, lens above the dash line."),
-        Rule(symbol: "speaker.wave.2.fill", text: "While you drive, Driveby only speaks short tips — never look at the screen. Full coaching comes after you park."),
+        Rule(text: "The driver does not touch the phone while the car is moving."),
+        Rule(text: "New drivers practise only with a licensed adult; a passenger operates the device."),
+        Rule(text: "Start recording before shifting into drive; stop after parking."),
+        Rule(text: "Mount the phone where it doesn't block your view — centred, lens above the dash line."),
+        Rule(text: "While you drive, Driveby only speaks short tips — never look at the screen. Full coaching comes after you park."),
     ]
 
     var body: some View {
         List {
             Section {
                 ForEach(Self.rules) { rule in
-                    Label(rule.text, systemImage: rule.symbol)
+                    Text(rule.text)
                 }
             } footer: {
                 Text("These rules are part of the app's design, not fine print.")
@@ -150,7 +145,7 @@ struct AboutView: View {
                     .font(.subheadline)
             }
             Section("Open-source & models") {
-                Text("Ultralytics YOLOv8n (AGPL-3.0) — vehicle & pedestrian detection, converted to Core ML with coremltools (BSD-3).\nPython processor: NumPy, pandas, SciPy, OpenCV, Ultralytics, Matplotlib, Requests, supabase-py.\nApple frameworks: AVFoundation, Vision, Core ML, Core Motion, Core Location, Core Bluetooth, MapKit, Swift Charts.")
+                Text("Ultralytics YOLOv8n (AGPL-3.0) — vehicle & pedestrian detection, converted to Core ML with coremltools (BSD-3).\nOnboarding symbol morph and walkthrough layout adapted from SwiftUI-Intro \"Walkthrough+Morphing\" by Balaji Venkatesh (MIT).\nFonts: DIN Alternate (ships with iOS) and SF Pro Rounded.\nPython processor: NumPy, pandas, SciPy, OpenCV, Ultralytics, Matplotlib, Requests, supabase-py.\nApple frameworks: AVFoundation, Vision, Core ML, Core Motion, Core Location, Core Bluetooth, MapKit, Swift Charts.")
                     .font(.subheadline)
             }
             Section("AI usage disclosure") {

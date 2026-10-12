@@ -1,33 +1,26 @@
-//
-//  ContentView.swift
-//  Driveby
-//
-//  Root: onboarding until a vehicle is set up and the disclaimer + safety rules are accepted, then the tabs:
-//    Drive · Skills · Hours · Hazard Map · Settings.
-//  The post-drive reflection opens by itself as soon as a just-finished drive has been scored.
-//  Screen map (Build Guide, Phase 6):
-//    Onboarding → pick vehicle (year/make/model → EPA lookup)
-//    Home ── Record button (large, thumb-reachable, one tap)
-//         ├─ Recent drives list (date, distance, two score chips)
-//         ├─ Trends (7/30-day sparklines for both scores)
-//         └─ Hazard map tab
-//    Drive Detail ── route map with coloured event pins, two score rings + breakdown bars,
-//                    event timeline → tap → blurred clip + sensor trace overlay + plain-English cause
-//
-
 import SwiftUI
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppSettings.self) private var settings
     @Environment(RecordingController.self) private var recorder
+    @State private var pendingQuickStart: QuickStartAction?
+
+    private var introPending: Bool { settings.introSeenVersion < IntroView.version }
 
     var body: some View {
         Group {
-            if settings.onboardingComplete {
-                MainTabView()
-            } else {
+            if !settings.onboardingComplete {
                 OnboardingView()
+            } else if introPending {
+                IntroView {
+                    model.quickStartPending = false
+                    withAnimation(.easeInOut(duration: 0.4)) { settings.introSeenVersion = IntroView.version }
+                }
+                .transition(.opacity)
+            } else {
+                MainTabView()
+                    .transition(.opacity)
             }
         }
         .fullScreenCover(isPresented: Binding(
@@ -35,7 +28,6 @@ struct ContentView: View {
             set: { _ in })) {
             RecordingView()
         }
-        // Installs from before the disclaimer existed must accept it once too.
         .fullScreenCover(isPresented: Binding(
             get: { settings.onboardingComplete && settings.disclaimerAcceptedAt == nil && recorder.phase == .idle },
             set: { _ in })) {
@@ -43,6 +35,12 @@ struct ContentView: View {
                 DisclaimerAcceptView(accepting: true) { settings.disclaimerAcceptedAt = Date() }
             }
             .interactiveDismissDisabled()
+        }
+        .fullScreenCover(isPresented: quickStartShown, onDismiss: runPendingQuickStart) {
+            QuickStartView { action in
+                pendingQuickStart = action
+                model.quickStartPending = false
+            }
         }
         .sheet(item: Binding(
             get: { recorder.phase == .idle ? model.reflectionDriveId.map(ReflectionTarget.init) : nil },
@@ -63,42 +61,72 @@ struct ContentView: View {
         }
         .animation(.spring(duration: 0.35), value: model.toast)
     }
-}
 
-/// Regular drivers get four tabs; the permit-hours tab appears only in new-driver mode.
-struct MainTabView: View {
-    @Environment(AppSettings.self) private var settings
-    /// Explicit tags so switching new-driver mode on/off (which adds/removes a tab) keeps you where you are.
-    private enum Tab: Hashable { case drive, skills, hours, map, settings }
-    @State private var tab: Tab = .drive
+    private var quickStartShown: Binding<Bool> {
+        Binding(
+            get: {
+                model.quickStartPending && settings.onboardingComplete && !introPending
+                    && settings.disclaimerAcceptedAt != nil && recorder.phase == .idle
+            },
+            set: { if !$0 { model.quickStartPending = false } })
+    }
 
-    var body: some View {
-        TabView(selection: $tab) {
-            HomeView()
-                .tabItem { Label("Drive", systemImage: "car.fill") }
-                .tag(Tab.drive)
-            SkillsView()
-                .tabItem { Label("Skills", systemImage: "gauge.with.dots.needle.67percent") }
-                .tag(Tab.skills)
-            if settings.isNewDriver {
-                HoursLogView()
-                    .tabItem { Label("Hours", systemImage: "clock.badge.checkmark.fill") }
-                    .tag(Tab.hours)
-            }
-            HazardMapView()
-                .tabItem { Label("Map", systemImage: "map.fill") }
-                .tag(Tab.map)
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(Tab.settings)
-        }
-        .onChange(of: settings.isNewDriver) { _, isNew in
-            if !isNew && tab == .hours { tab = .drive }
+    private func runPendingQuickStart() {
+        guard let action = pendingQuickStart else { return }
+        pendingQuickStart = nil
+        let vehicle = model.activeVehicle?.id
+        switch action {
+        case .armAutoStart(let supervisor): recorder.arm(vehicleId: vehicle, supervisor: supervisor)
+        case .startNow(let supervisor): recorder.start(vehicleId: vehicle, supervisor: supervisor)
+        case .notNow: break
         }
     }
 }
 
-/// Identifiable wrapper so `.sheet(item:)` can present the reflection for a drive id.
+struct MainTabView: View {
+    @Environment(AppSettings.self) private var settings
+    private enum Tab: Hashable { case drive, skills, hours, map, settings }
+    @State private var tab: Tab = .drive
+
+    private var items: [DriveTabBar<Tab>.Item] {
+        var list: [DriveTabBar<Tab>.Item] = [
+            .init(tab: .drive, title: "Drive"),
+            .init(tab: .skills, title: "Skills"),
+        ]
+        if settings.isNewDriver { list.append(.init(tab: .hours, title: "Hours")) }
+        list.append(.init(tab: .map, title: "Map"))
+        list.append(.init(tab: .settings, title: "Settings"))
+        return list
+    }
+
+    var body: some View {
+        TabView(selection: $tab) {
+            HomeView()
+                .tag(Tab.drive)
+                .toolbar(.hidden, for: .tabBar)
+            SkillsView()
+                .tag(Tab.skills)
+                .toolbar(.hidden, for: .tabBar)
+            if settings.isNewDriver {
+                HoursLogView()
+                    .tag(Tab.hours)
+                    .toolbar(.hidden, for: .tabBar)
+            }
+            HazardMapView()
+                .tag(Tab.map)
+                .toolbar(.hidden, for: .tabBar)
+            SettingsView()
+                .tag(Tab.settings)
+                .toolbar(.hidden, for: .tabBar)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            DriveTabBar(items: items, selection: $tab)
+        }
+        .onChange(of: settings.isNewDriver) { _, isNew in
+            if !isNew && tab == .hours { tab = .drive }
+        }    }
+}
+
 private struct ReflectionTarget: Identifiable { let id: UUID }
 
 #Preview {

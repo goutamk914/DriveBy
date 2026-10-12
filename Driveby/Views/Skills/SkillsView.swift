@@ -1,7 +1,3 @@
-//  SkillsView.swift — Driveby
-//  The "Driver Skills" tab: Smooth Braking 67%, Turns 76%, … over your last 10 scored drives, with the
-//  change since the 10 before, your average safety score, and what to practise next.
-
 import SwiftUI
 
 struct SkillsView: View {
@@ -20,13 +16,11 @@ struct SkillsView: View {
                     skillsCard
                     practiceCard
                     NavigationLink { TrendsView() } label: {
-                        linkCard(title: "Score trends", detail: "Daily safety and efficiency, streaks and totals",
-                                 symbol: "chart.line.uptrend.xyaxis", tint: Theme.safety)
+                        linkCard(title: "Score trends", detail: "Daily safety and efficiency, streaks and totals")
                     }
                     .buttonStyle(.plain)
                     NavigationLink { ValidationView() } label: {
-                        linkCard(title: "Is the efficiency score real?", detail: "Your score vs. actual fuel economy",
-                                 symbol: "chart.dots.scatter", tint: Theme.efficiency)
+                        linkCard(title: "Is the efficiency score real?", detail: "Your score vs. actual fuel economy")
                     }
                     .buttonStyle(.plain)
                     DisclaimerBanner(compact: true)
@@ -38,13 +32,10 @@ struct SkillsView: View {
         }
     }
 
-    // MARK: Data
-
     private var recent: [DriveRecord] { Array(drives.processed.prefix(window)) }
 
     private var current: SkillReport { model.combinedSkills(lastDrives: window) }
 
-    /// The 10 drives before the current window (for the ▲/▼ change).
     private var previous: SkillReport {
         SkillReport.combine(drives.processed.dropFirst(window).prefix(window).compactMap { drives.analysis($0)?.skills })
     }
@@ -56,8 +47,6 @@ struct SkillsView: View {
         guard total > 0 else { return nil }
         return zip(scored, weight).map { ($0.safetyScore ?? 0) * $1 }.reduce(0, +) / total
     }
-
-    // MARK: Cards
 
     private var safetyCard: some View {
         Card {
@@ -96,8 +85,7 @@ struct SkillsView: View {
                     }
                     .buttonStyle(.plain)
                     if let delta = change(skill, now, before) {
-                        Label(String(format: "%@%.0f points vs. the 10 drives before", delta >= 0 ? "+" : "", delta),
-                              systemImage: delta >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        Text(String(format: "%@%.0f points vs. the 10 drives before", delta >= 0 ? "+" : "", delta))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(delta >= 0 ? Theme.efficiency : .orange)
                     }
@@ -149,7 +137,7 @@ struct SkillsView: View {
             }
             ForEach(plan) { f in
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(f.title, systemImage: f.skill?.symbol ?? "moon.stars.fill")
+                    Text(f.title)
                         .font(.headline).foregroundStyle(f.skill?.color ?? .indigo)
                     Text(f.why).font(.footnote).foregroundStyle(.secondary)
                     if settings.driverMode == .newDriver {
@@ -168,7 +156,7 @@ struct SkillsView: View {
         }
     }
 
-    private func linkCard(title: String, detail: String, symbol: String, tint: Color) -> some View {
+    private func linkCard(title: String, detail: String) -> some View {
         Card {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
@@ -176,7 +164,6 @@ struct SkillsView: View {
                     Text(detail).font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: symbol).font(.title2).foregroundStyle(tint)
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
             }
         }

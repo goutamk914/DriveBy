@@ -1,15 +1,9 @@
-//  DriveProcessor.swift — Driveby
-//  Post-drive processing, entirely on the phone (no live alerts — coaching happens after
-//  the car is parked): sensors.jsonl → 10 Hz series → events + scores → blurred event clips.
-
 import AVFoundation
 import Foundation
 
 enum ProcessingOutcome {
     case processed(DriveAnalysis)
-    /// Too short / never moved — discarded per Step 1.3 (files deleted).
     case discarded(String)
-    /// Kept, but couldn't be scored (e.g. no GPS signal).
     case failed(String)
 }
 
@@ -17,7 +11,6 @@ enum DriveProcessor {
     static let clipPre = 6.0
     static let clipPost = 6.0
 
-    /// Runs off the main thread. Pure function of the folder contents + vehicle + network.
     static func process(folder: URL, sidecar: DriveSidecar, vehicle: VehicleParams, fetchSpeedLimits: Bool = true) async -> ProcessingOutcome {
         let sensorURL = folder.appendingPathComponent(sidecar.sensorFile)
         guard let data = try? Data(contentsOf: sensorURL) else { return .failed("The sensor log is missing.") }
@@ -58,8 +51,6 @@ enum DriveProcessor {
 enum ClipExporter {
     static func clipCenter(_ e: DriveEvent) -> Double { e.kind == .idle ? e.tOffsetS + 3 : e.tPeakS }
 
-    /// Where an event's clip starts on the drive video's timeline (seconds). Clip time c ↔ sensor time
-    /// videoStartT + clipStartAsset + c — the same single clock as everything else.
     static func clipStartAsset(for e: DriveEvent, videoStartT: Double) -> Double {
         clipStartAsset(center: clipCenter(e), videoStartT: videoStartT)
     }
@@ -70,7 +61,6 @@ enum ClipExporter {
         max(center - DriveProcessor.clipPre - videoStartT, 0)
     }
 
-    /// Clips for the positive / stop-sign moments of the reflection timeline.
     static func exportClips(video: URL, videoStartT: Double, videoEndT: Double?, moments: [DriveMoment], folder: URL) async -> [DriveMoment] {
         let asset = AVURLAsset(url: video)
         let durationSeconds: Double
@@ -94,8 +84,6 @@ enum ClipExporter {
         return out
     }
 
-    /// Cuts a ~12 s clip around each event from the ALREADY-BLURRED drive video (passthrough, no
-    /// re-encode — so clips inherit the redaction guarantee and cost almost nothing to make).
     static func exportClips(video: URL, videoStartT: Double, videoEndT: Double?, events: [DriveEvent], folder: URL) async -> [DriveEvent] {
         let asset = AVURLAsset(url: video)
         let durationSeconds: Double
@@ -111,7 +99,7 @@ enum ClipExporter {
             let e = out[i]
             let start = clipStartAsset(for: e, videoStartT: videoStartT)
             let end = min(clipCenter(e) + DriveProcessor.clipPost - videoStartT, durationSeconds)
-            guard end - start >= 2 else { out[i].clipPath = nil; continue }   // event happened while the camera was off
+            guard end - start >= 2 else { out[i].clipPath = nil; continue }
             let name = "clips/\(e.kind.rawValue)_\(Int(e.tOffsetS.rounded())).mov"
             let dst = folder.appendingPathComponent(name)
             try? FileManager.default.removeItem(at: dst)

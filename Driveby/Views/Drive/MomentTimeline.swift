@@ -1,6 +1,3 @@
-//  MomentTimeline.swift — Driveby
-//  "6:30 – Good stop sign approach · 5:30 – Hard brake" — tap any moment to replay its clip.
-
 import SwiftUI
 
 struct MomentTimeline: View {
@@ -10,7 +7,7 @@ struct MomentTimeline: View {
 
     var body: some View {
         if moments.isEmpty {
-            Label("Nothing significant to review — nice, steady drive.", systemImage: "checkmark.seal.fill")
+            Text("Nothing significant to review — nice, steady drive.")
                 .foregroundStyle(Theme.efficiency)
         } else {
             VStack(alignment: .leading, spacing: 0) {
@@ -36,7 +33,7 @@ struct MomentTimeline: View {
                 HStack {
                     Text(m.kind.title).font(.subheadline.weight(.semibold)).foregroundStyle(m.isPositive ? Theme.efficiency : .primary)
                     Spacer()
-                    if m.clipPath != nil { Image(systemName: "play.rectangle.fill").foregroundStyle(.secondary) }
+                    if m.clipPath != nil { Text("Clip").font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
                 }
                 Text(m.body).font(.footnote).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.leading)
                 if !m.isPositive { SeverityBar(value: m.severity, tint: m.kind.color) }

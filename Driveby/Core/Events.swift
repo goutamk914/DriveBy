@@ -1,23 +1,15 @@
-//  Events.swift — Driveby
-//  Phase 2: event detection with the Build Guide Step 2.2 thresholds and the
-//  debounce rule (merge same-kind events within 2 s; enforce a 5 s minimum gap)
-//  so one stop at a light can't produce nine "hard brake" events.
-//
-//  Pipeline:  detect core runs  →  debounce  →  enrich (speeds, energy, road…)
-//  Mirrors processor/events.py — keep them in lock-step (parity tests enforce it).
-
 import Foundation
 
 struct EventDetail: Codable, Hashable, Sendable {
-    var durationS: Double?       // whole manoeuvre (brake/accel) or event span (others)
+    var durationS: Double?
     var vStartMps: Double?
     var vEndMps: Double?
-    var peak: Double?            // a_long / |lateral| (m/s²), excess over limit (m/s), or min headway (s)
+    var peak: Double?
     var limitMps: Double?
     var road: String?
     var headwayS: Double?
     var leadDistM: Double?
-    var energyJ: Double?         // kinetic energy dissipated by the brake manoeuvre
+    var energyJ: Double?
 
     enum CodingKeys: String, CodingKey {
         case durationS = "duration_s", vStartMps = "v_start_mps", vEndMps = "v_end_mps", peak
@@ -28,15 +20,14 @@ struct EventDetail: Codable, Hashable, Sendable {
 struct DriveEvent: Codable, Identifiable, Hashable, Sendable {
     var id: UUID = UUID()
     var kind: EventKind
-    /// Sensor-clock seconds since recording start (the data-contract `t`) at event start.
     var tOffsetS: Double
     var tEndS: Double
     var tPeakS: Double
-    var severity: Double         // 0...1
+    var severity: Double
     var lat: Double?
     var lon: Double?
     var detail: EventDetail = EventDetail()
-    var clipPath: String? = nil  // relative path of the blurred clip (local) / storage key (cloud)
+    var clipPath: String? = nil
 
     var duration: Double { max(tEndS - tOffsetS, 0) }
 
@@ -49,8 +40,8 @@ struct DriveEvent: Codable, Identifiable, Hashable, Sendable {
 enum EventDetector {
 
     struct Input: Sendable {
-        var series: DriveSeries          // trip slice
-        var limits: [SpeedLimits.Match]  // aligned with series; empty → speed limits unavailable
+        var series: DriveSeries
+        var limits: [SpeedLimits.Match]
         var massKg: Double
     }
 
@@ -70,9 +61,6 @@ enum EventDetector {
             .sorted { $0.tOffsetS < $1.tOffsetS }
     }
 
-    // MARK: Core detection
-
-    /// Runs where the condition holds for ≥ `sustain`; peak = most extreme sample in the run.
     private static func runEvents(_ s: DriveSeries, kind: EventKind, mask: [Bool], sustain: Double,
                                   peakScore: (Int) -> Double, severity: (Int, Double) -> Double) -> [DriveEvent] {
         var out: [DriveEvent] = []
@@ -99,7 +87,7 @@ enum EventDetector {
             return runEvents(s, kind: kind, mask: mask, sustain: Thresholds.accelSustain,
                              peakScore: { s.aLong[$0] },
                              severity: { i, _ in Numerics.ramp(s.aLong[i], from: Thresholds.hardAccelA, to: Thresholds.hardAccelFull) })
-        default: // harsh_corner: |v × yaw_rate| > 3.0 m/s²
+        default:
             let mask = (0..<s.count).map { abs(s.aLat[$0]) > Thresholds.harshCornerA && !s.gpsGap[$0] }
             return runEvents(s, kind: .harshCorner, mask: mask, sustain: Thresholds.accelSustain,
                              peakScore: { abs(s.aLat[$0]) },
@@ -107,7 +95,6 @@ enum EventDetector {
         }
     }
 
-    /// speed > limit + 4.5 m/s (~10 mph) for ≥ 5 s. Severity = 0.6·excess term + 0.4·duration term.
     private static func speedingEvents(_ s: DriveSeries, limits: [SpeedLimits.Match]) -> [DriveEvent] {
         let over = (0..<s.count).map { i in limits[i].limitMps.map { s.v[i] - $0 } ?? -Double.infinity }
         return runEvents(s, kind: .speeding, mask: over.map { $0 > Thresholds.speedingMargin },
@@ -118,7 +105,6 @@ enum EventDetector {
                              + 0.4 * Numerics.clip(duration / 60, 0, 1) })
     }
 
-    /// speed < 0.5 m/s for > 60 s. Severity 60 s → 0, 300 s → 1.
     private static func idleEvents(_ s: DriveSeries) -> [DriveEvent] {
         var out: [DriveEvent] = []
         for (a, b) in Numerics.runs(s.v.map { $0 < Thresholds.idleSpeed }) {
@@ -132,8 +118,6 @@ enum EventDetector {
         return out
     }
 
-    /// Step 5.2 — time headway = distance / speed. < 1.0 s sustained 3 s = tailgating.
-    /// Lead-vehicle detections drop out for a frame or two; gaps ≤ 0.5 s are bridged.
     static func headway(_ s: DriveSeries) -> [Double?] {
         var h = [Double?](repeating: nil, count: s.count)
         guard s.leadDist.count == s.count else { return h }
@@ -158,10 +142,6 @@ enum EventDetector {
                          severity: { i, _ in Numerics.ramp(h[i], from: Thresholds.tailgateHeadway, to: Thresholds.tailgateFullHeadway) })
     }
 
-    // MARK: Debounce
-
-    /// Per kind, in time order: an event that starts ≤ 2 s after the previous one ends, or < 5 s
-    /// after the previous one starts, is folded into it (span extended, worst severity/peak kept).
     static func debounce(_ events: [DriveEvent]) -> [DriveEvent] {
         var result: [DriveEvent] = []
         let byKind = Dictionary(grouping: events, by: \.kind)
@@ -186,8 +166,6 @@ enum EventDetector {
         return result
     }
 
-    // MARK: Enrichment (after debounce, so nothing is double counted)
-
     static func enrich(_ e: DriveEvent, _ s: DriveSeries, limits: [SpeedLimits.Match]?, mass: Double) -> DriveEvent {
         var ev = e
         let a = s.index(at: e.tOffsetS)
@@ -197,7 +175,6 @@ enum EventDetector {
         d.durationS = Double(b - a + 1) * s.dt
         switch e.kind {
         case .hardBrake, .hardAccel:
-            // Extend to the whole manoeuvre: contiguous decel < -0.5 m/s² (accel > 0.5 m/s²).
             let braking = e.kind == .hardBrake
             var lo = a, hi = b
             func inManoeuvre(_ i: Int) -> Bool { braking ? s.aLong[i] < Thresholds.brakingIntervalA : s.aLong[i] > -Thresholds.brakingIntervalA }

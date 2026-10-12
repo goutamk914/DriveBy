@@ -1,17 +1,6 @@
-//  Numerics.swift — Driveby
-//  Small, dependency-free numeric toolkit. Every function here mirrors a
-//  NumPy / SciPy call used by the Python processor so the two pipelines agree:
-//    savgol(...)       ↔ scipy.signal.savgol_filter(x, 21, 3)        (mode="interp")
-//    gradient(...)     ↔ numpy.gradient(x, dt)                       (edge_order=1)
-//    percentile(...)   ↔ numpy.percentile(x, q)                      (linear)
-//    linearFit(...)    ↔ scipy.stats.linregress
-//  Covered by Tests/DrivebyCoreTests/NumericsTests.swift against SciPy output.
-
 import Foundation
 
 enum Numerics {
-
-    // MARK: Basic statistics
 
     static func mean(_ x: [Double]) -> Double {
         x.isEmpty ? .nan : x.reduce(0, +) / Double(x.count)
@@ -21,13 +10,11 @@ enum Numerics {
         v.isNaN ? lo : min(max(v, lo), hi)
     }
 
-    /// Linear map a→0, b→1, clipped. Works for a > b too (e.g. -3 → 0, -6 → 1).
     static func ramp(_ v: Double, from a: Double, to b: Double) -> Double {
         guard a != b else { return v >= b ? 1 : 0 }
         return clip((v - a) / (b - a), 0, 1)
     }
 
-    /// numpy.percentile with the default 'linear' method. q in [0, 100].
     static func percentile(_ values: [Double], _ q: Double) -> Double {
         let x = values.filter { $0.isFinite }.sorted()
         guard !x.isEmpty else { return .nan }
@@ -38,8 +25,6 @@ enum Numerics {
         let frac = pos - Double(lo)
         return x[lo] + (x[hi] - x[lo]) * frac
     }
-
-    // MARK: numpy.gradient (uniform spacing, edge_order = 1)
 
     static func gradient(_ y: [Double], dt: Double) -> [Double] {
         let n = y.count
@@ -53,9 +38,6 @@ enum Numerics {
         return g
     }
 
-    // MARK: Savitzky–Golay smoothing (scipy mode="interp")
-
-    /// Least-squares polynomial fit of degree `order` to points (xs, ys); returns coefficients c0...cK.
     static func polyfit(_ xs: [Double], _ ys: [Double], order: Int) -> [Double] {
         let k = order + 1
         var ata = [[Double]](repeating: [Double](repeating: 0, count: k), count: k)
@@ -77,10 +59,8 @@ enum Numerics {
         return acc
     }
 
-    /// Smoothing coefficients for a centred window (equivalent to scipy.signal.savgol_coeffs).
     static func savgolCoefficients(window: Int, order: Int) -> [Double] {
         let half = window / 2
-        // Coefficient j is the value at x=0 of the polynomial fitted to a unit impulse at position j.
         var coeffs = [Double](repeating: 0, count: window)
         let xs = (0..<window).map { Double($0 - half) }
         for j in 0..<window {
@@ -91,8 +71,6 @@ enum Numerics {
         return coeffs
     }
 
-    /// scipy.signal.savgol_filter(y, window, order) with mode="interp".
-    /// Gracefully shrinks the window for short series (scipy would raise).
     static func savgol(_ y: [Double], window requested: Int, order: Int) -> [Double] {
         let n = y.count
         var window = requested
@@ -106,7 +84,6 @@ enum Numerics {
             for j in 0..<window { acc += c[j] * y[i - half + j] }
             out[i] = acc
         }
-        // Edges: fit one polynomial to the first / last `window` samples and evaluate (scipy "interp").
         let xs = (0..<window).map(Double.init)
         let headFit = polyfit(xs, Array(y[0..<window]), order: order)
         for i in 0..<half { out[i] = polyval(headFit, Double(i)) }
@@ -115,9 +92,6 @@ enum Numerics {
         return out
     }
 
-    // MARK: Linear algebra
-
-    /// Gaussian elimination with partial pivoting. Returns nil when singular.
     static func solve(_ a: [[Double]], _ b: [Double]) -> [Double]? {
         let n = b.count
         guard n > 0, a.count == n else { return nil }
@@ -150,7 +124,6 @@ enum Numerics {
         func predict(_ x: Double) -> Double { intercept + slope * x }
     }
 
-    /// Ordinary least squares y = a + b·x (scipy.stats.linregress).
     static func linearFit(x: [Double], y: [Double]) -> LinearFit? {
         let pairs = zip(x, y).filter { $0.0.isFinite && $0.1.isFinite }
         let n = pairs.count
@@ -165,8 +138,6 @@ enum Numerics {
         return LinearFit(slope: slope, intercept: my - slope * mx, r: r, n: n)
     }
 
-    /// Ridge regression with intercept: minimise |y - Xβ - β0|² + λ|β|². Features are used as-is.
-    /// Returns (intercept, coefficients). λ=0 → ordinary least squares.
     static func ridge(X: [[Double]], y: [Double], lambda: Double) -> (intercept: Double, coef: [Double])? {
         let n = y.count
         guard n >= 2, let p = X.first?.count, p > 0, X.count == n else { return nil }
@@ -188,9 +159,6 @@ enum Numerics {
         return (intercept, beta)
     }
 
-    // MARK: Interpolation
-
-    /// Linear interpolation of (xs, ys) at query points; xs must be ascending. Clamps at the ends (numpy.interp).
     static func interp(_ query: [Double], xs: [Double], ys: [Double]) -> [Double] {
         guard !xs.isEmpty else { return query.map { _ in .nan } }
         var out = [Double](repeating: 0, count: query.count)
@@ -206,7 +174,6 @@ enum Numerics {
         return out
     }
 
-    /// Contiguous runs where `mask` is true: [(startIndex, endIndexInclusive)].
     static func runs(_ mask: [Bool]) -> [(Int, Int)] {
         var result: [(Int, Int)] = []
         var start: Int? = nil
@@ -219,8 +186,6 @@ enum Numerics {
     }
 }
 
-// MARK: - Geodesy
-
 enum Geo {
     static let earthRadius = 6_371_008.8
 
@@ -231,7 +196,6 @@ enum Geo {
         return 2 * earthRadius * atan2(a.squareRoot(), (1 - a).squareRoot())
     }
 
-    /// Initial bearing from point 1 to point 2, degrees in [0, 360).
     static func bearing(_ lat1: Double, _ lon1: Double, _ lat2: Double, _ lon2: Double) -> Double {
         let p1 = lat1 * .pi / 180, p2 = lat2 * .pi / 180, dl = (lon2 - lon1) * .pi / 180
         let y = sin(dl) * cos(p2)
@@ -240,13 +204,11 @@ enum Geo {
         return (b + 360).truncatingRemainder(dividingBy: 360)
     }
 
-    /// Smallest absolute difference between two headings, degrees in [0, 180].
     static func headingDelta(_ a: Double, _ b: Double) -> Double {
         let d = abs((a - b).truncatingRemainder(dividingBy: 360))
         return d > 180 ? 360 - d : d
     }
 
-    /// Local equirectangular projection (metres) around a reference latitude — accurate to <0.1% over a few km.
     struct LocalProjection: Sendable {
         let lat0: Double, lon0: Double, kx: Double, ky: Double
         init(lat0: Double, lon0: Double) {
@@ -257,7 +219,6 @@ enum Geo {
         func xy(_ lat: Double, _ lon: Double) -> (Double, Double) { ((lon - lon0) * kx, (lat - lat0) * ky) }
     }
 
-    /// Distance from point P to segment AB in a planar frame, plus segment bearing (degrees, A→B, y = north).
     static func pointSegment(px: Double, py: Double, ax: Double, ay: Double, bx: Double, by: Double) -> (dist: Double, bearing: Double) {
         let dx = bx - ax, dy = by - ay
         let len2 = dx * dx + dy * dy
@@ -271,17 +232,15 @@ enum Geo {
     }
 }
 
-// MARK: - Units
-
 enum Units {
     static let mpsToMph = 2.236936
     static let metresPerMile = 1609.344
     static let litresPerGallon = 3.785411784
-    static let gramsGasolinePerGallon = 2830.0     // Build Guide, Decision 4
+    static let gramsGasolinePerGallon = 2830.0
     static let stoichiometricAFR = 14.7
-    static let joulesPerGallonGasoline = 121.32e6 // 33.7 kWh (EPA MPGe definition)
-    static let typicalEngineEfficiency = 0.25     // tank-to-wheels, typical gasoline car
-    static let idleGallonsPerHour = 0.3           // DOE: ~0.16–0.5 gal/h for passenger cars
+    static let joulesPerGallonGasoline = 121.32e6
+    static let typicalEngineEfficiency = 0.25
+    static let idleGallonsPerHour = 0.3
 
     static func mph(_ mps: Double) -> Double { mps * mpsToMph }
     static func miles(_ metres: Double) -> Double { metres / metresPerMile }

@@ -1,6 +1,3 @@
-//  GarageStore.swift — Driveby
-//  Vehicles and the fuel log (validation ground truth). Persisted to Documents/garage.json.
-
 import Foundation
 import Observation
 
@@ -10,8 +7,8 @@ final class GarageStore {
     private struct File: Codable {
         var vehicles: [Vehicle] = []
         var fuelLogs: [FuelLog] = []
-        var dirty: [UUID] = []      // ids modified since last cloud sync
-        var deleted: [String] = []  // "table:id" pending cloud deletion
+        var dirty: [UUID] = []
+        var deleted: [String] = []
     }
 
     private(set) var vehicles: [Vehicle] = []
@@ -64,7 +61,6 @@ final class GarageStore {
     func clearPendingDeletes(_ done: [String]) { pendingDeletes.removeAll { done.contains($0) }; save() }
     func markAllDirty() { dirty = Set(vehicles.map(\.id) + fuelLogs.map(\.id)); save() }
 
-    /// Price per gallon from the most recent fill-up that recorded a price (for the "about 4¢" copy).
     func latestPricePerGallon(vehicleId: UUID?) -> Double? {
         fuelLogs.first { ($0.vehicleId == vehicleId || vehicleId == nil) && $0.pricePerGallon != nil }?.pricePerGallon
     }
@@ -76,7 +72,6 @@ final class GarageStore {
         try? FileManager.default.removeItem(at: url)
     }
 
-    /// CSV in the Day-1 spreadsheet format: date, odometer, gallons, price_total, car_id (+ filled_to_full).
     func fuelCSV() -> String {
         let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd HH:mm"; df.locale = Locale(identifier: "en_US_POSIX")
         var s = "date,odometer,gallons,price_total,car_id,filled_to_full\n"

@@ -1,13 +1,6 @@
-//  SetupSteps.swift — Driveby
-//  The short setup after the intro: how do you drive? → (new drivers: permit hours) → your car →
-//  permissions → ready. NewDriverSetupView is also opened from Settings and Home when a regular
-//  driver switches on new-driver mode later.
-
 import AVFoundation
 import CoreLocation
 import SwiftUI
-
-// MARK: - Regular or new driver
 
 struct DriverTypeStep: View {
     @Binding var mode: DriverMode
@@ -15,26 +8,25 @@ struct DriverTypeStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("How do you drive?").font(.largeTitle.weight(.bold)).padding(.top, 8)
+            Text("How do you drive?").font(.roadSign(.largeTitle)).padding(.top, 8)
             Text("You can change this any time in Settings.").foregroundStyle(.secondary)
-            choice(.regular, symbol: "car.fill", title: "I drive regularly",
+            choice(.regular, title: "I drive regularly",
                    detail: "Voice tips while you drive and a score after.")
-            choice(.newDriver, symbol: "graduationcap.fill", title: "I'm a new driver",
+            choice(.newDriver, title: "I'm a new driver",
                    detail: "Log permit hours and get step-by-step coaching.")
             Spacer()
             Button(action: onContinue) {
-                Text("Continue").font(.headline).frame(maxWidth: .infinity).frame(height: 52)
+                Text("Continue").font(.roadSign(.title3)).frame(maxWidth: .infinity).frame(height: 52)
             }
             .buttonStyle(.borderedProminent)
         }
         .padding(24)
     }
 
-    private func choice(_ m: DriverMode, symbol: String, title: String, detail: String) -> some View {
+    private func choice(_ m: DriverMode, title: String, detail: String) -> some View {
         let selected = mode == m
         return Button { withAnimation(.snappy) { mode = m } } label: {
             HStack(spacing: 14) {
-                Image(systemName: symbol).font(.title2).foregroundStyle(.tint).frame(width: 36)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.headline).foregroundStyle(.primary)
                     Text(detail).font(.subheadline).foregroundStyle(.secondary)
@@ -52,9 +44,6 @@ struct DriverTypeStep: View {
     }
 }
 
-// MARK: - New-driver setup
-
-/// Permit requirement, supervising driver, and hours already logged on paper.
 struct NewDriverSetupView: View {
     var doneTitle = "Continue"
     var onDone: () -> Void
@@ -81,9 +70,9 @@ struct NewDriverSetupView: View {
                 Text("A licensed adult in the front passenger seat. You can change it before each drive.")
             }
             Section {
-                Button { importing = true } label: { Label("Scan or upload your paper log", systemImage: "doc.text.viewfinder") }
+                Button { importing = true } label: { Text("Scan or upload your paper log") }
                 if let imported {
-                    Label("Added \(HoursSummary.hoursString(imported.durationS)) from your paper log", systemImage: "checkmark.circle.fill")
+                    Text("Added \(HoursSummary.hoursString(imported.durationS)) from your paper log")
                         .foregroundStyle(Theme.efficiency)
                 } else if model.hoursSummary.totalS > 0 {
                     LabeledContent("Already logged", value: HoursSummary.hoursString(model.hoursSummary.totalS))
@@ -103,8 +92,6 @@ struct NewDriverSetupView: View {
     }
 }
 
-// MARK: - Permissions
-
 struct PermissionsStep: View {
     var next: () -> Void
     @Environment(RecordingController.self) private var recorder
@@ -116,11 +103,11 @@ struct PermissionsStep: View {
     var body: some View {
         Form {
             Section {
-                permissionRow(icon: "location.fill", title: "Location", detail: "Your speed and route — needed to score a drive.",
+                permissionRow(title: "Location", detail: "Your speed and route — needed to score a drive.",
                               granted: locationGranted, denied: location == .denied || location == .restricted) {
                     recorder.sensors.requestLocationPermission()
                 }
-                permissionRow(icon: "camera.fill", title: "Camera (optional)", detail: "Dashcam clips and following distance. Faces and plates are blurred first.",
+                permissionRow(title: "Camera (optional)", detail: "Dashcam clips and following distance. Faces and plates are blurred first.",
                               granted: camera == .authorized, denied: camera == .denied || camera == .restricted) {
                     Task { _ = await CameraRecorder.requestAccess(); camera = AVCaptureDevice.authorizationStatus(for: .video) }
                 }
@@ -141,15 +128,14 @@ struct PermissionsStep: View {
         }
     }
 
-    private func permissionRow(icon: String, title: String, detail: String, granted: Bool, denied: Bool,
+    private func permissionRow(title: String, detail: String, granted: Bool, denied: Bool,
                                request: @escaping () -> Void) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon).foregroundStyle(.tint).frame(width: 24)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.headline)
                 Text(detail).font(.footnote).foregroundStyle(.secondary)
                 if granted {
-                    Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.subheadline)
+                    Text("Allowed").foregroundStyle(.green).font(.subheadline)
                 } else if denied {
                     Text("Turned off — enable in Settings → Driveby.").font(.subheadline).foregroundStyle(.orange)
                 } else {
@@ -161,29 +147,26 @@ struct PermissionsStep: View {
     }
 }
 
-// MARK: - Ready
-
 struct ReadyStep: View {
+    @Binding var agreed: Bool
     var onStart: () -> Void
     @Environment(AppSettings.self) private var settings
-    @State private var agreed = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Image(systemName: "flag.checkered").font(.system(size: 52)).foregroundStyle(.tint).padding(.top, 8)
-                Text("You're set").font(.largeTitle.weight(.bold))
+                Text("You're set").font(.roadSign(.largeTitle)).padding(.top, 8)
                 VStack(alignment: .leading, spacing: 10) {
-                    tip("iphone.landscape", "Mount the phone in landscape")
-                    tip("record.circle", "Tap Start before you drive")
-                    tip("speaker.wave.2.fill", "Listen — Driveby speaks up")
+                    tip("Mount the phone in landscape")
+                    tip("Tap Start before you drive")
+                    tip("Listen — Driveby speaks up")
                 }
                 SafetyPoints(mode: settings.driverMode)
                 AgreeCheckbox(agreed: $agreed)
-                NavigationLink { MountCheckView() } label: { Label("Check my mount", systemImage: "camera.viewfinder") }
+                NavigationLink { MountCheckView() } label: { Text("Check my mount") }
                     .disabled(CameraRecorder.authorization != .authorized)
                 Button(action: onStart) {
-                    Text("Start driving").font(.headline).frame(maxWidth: .infinity).frame(height: 52)
+                    Text("Start driving").font(.roadSign(.title3)).frame(maxWidth: .infinity).frame(height: 52)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!agreed)
@@ -192,7 +175,7 @@ struct ReadyStep: View {
         }
     }
 
-    private func tip(_ symbol: String, _ text: String) -> some View {
-        Label(text, systemImage: symbol).font(.headline)
+    private func tip(_ text: String) -> some View {
+        Text(text).font(.headline)
     }
 }

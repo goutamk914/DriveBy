@@ -1,8 +1,3 @@
-//  SampleFileWriter.swift — Driveby
-//  Append-only JSONL writer. One sample per line, flushed to disk every 5 s
-//  ("a crash at minute 40 must not lose minutes 0–39"). Thread-safe: GPS (main
-//  thread), IMU (motion queue), vision (video queue) and OBD (BLE queue) all append.
-
 import Foundation
 
 final class SampleFileWriter: @unchecked Sendable {
@@ -42,7 +37,6 @@ final class SampleFileWriter: @unchecked Sendable {
 
     func flush() { queue.sync { flushLocked(sync: true) } }
 
-    /// Flushes, fsyncs and closes. Safe to call more than once.
     func close() {
         queue.sync {
             guard !closed else { return }
@@ -59,7 +53,6 @@ final class SampleFileWriter: @unchecked Sendable {
             try handle.write(contentsOf: buffer)
             if sync { try handle.synchronize() }
         } catch {
-            // Disk full or file protection: keep buffering is pointless; drop and keep the app alive.
         }
         buffer.removeAll(keepingCapacity: true)
     }

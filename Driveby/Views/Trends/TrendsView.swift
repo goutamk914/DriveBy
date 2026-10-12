@@ -1,7 +1,3 @@
-//  TrendsView.swift — Driveby
-//  Private trend lines and weekly streaks (instead of a public leaderboard, which would reward
-//  checking your phone and driving competitively) + the validation chart.
-
 import Charts
 import SwiftUI
 
@@ -10,7 +6,6 @@ struct TrendsView: View {
     @Environment(DriveStore.self) private var drives
     @State private var days = 30
 
-    // Pushed from the Skills tab (no NavigationStack of its own).
     var body: some View {
         ScrollView {
                 VStack(spacing: 16) {
@@ -56,8 +51,8 @@ struct TrendsView: View {
                 .chartYScale(domain: 0...100)
                 .frame(height: 200)
                 HStack(spacing: 16) {
-                    Label("Efficiency", systemImage: "circle.fill").foregroundStyle(Theme.efficiency)
-                    Label("Safety", systemImage: "circle.fill").foregroundStyle(Theme.safety)
+                    Text("Efficiency").foregroundStyle(Theme.efficiency)
+                    Text("Safety").foregroundStyle(Theme.safety)
                 }
                 .font(.caption)
             }
@@ -69,12 +64,10 @@ struct TrendsView: View {
         let smooth = Trends.smoothStreak(drives.records, hardBrakeCounts: drives.hardBrakeCounts())
         return HStack(spacing: 12) {
             Card {
-                Image(systemName: "flame.fill").foregroundStyle(.orange).font(.title2)
                 Text("\(weekly)").font(.title.weight(.bold))
                 Text("week safety streak (avg ≥ 80)").font(.caption).foregroundStyle(.secondary)
             }
             Card {
-                Image(systemName: "wind").foregroundStyle(Theme.efficiency).font(.title2)
                 Text("\(smooth)").font(.title.weight(.bold))
                 Text("drives in a row without a hard brake").font(.caption).foregroundStyle(.secondary)
             }
@@ -89,7 +82,6 @@ struct TrendsView: View {
                     Text("Your score vs. actual fuel economy, with r² and n.").font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "chart.dots.scatter").font(.title).foregroundStyle(Theme.efficiency)
             }
         }
     }

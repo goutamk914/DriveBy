@@ -1,7 +1,3 @@
-//  DriveDetailView.swift — Driveby
-//  Route map with coloured event pins · two score rings + component breakdown ·
-//  scrollable, tappable event timeline. Tapping an event is the whole app.
-
 import MapKit
 import SwiftUI
 
@@ -24,7 +20,7 @@ struct DriveDetailView: View {
             if let r = drives.record(driveId) {
                 content(r)
             } else {
-                ContentUnavailableView("Drive deleted", systemImage: "trash")
+                ContentUnavailableView { Text("Drive deleted") }
             }
         }
         .background(Theme.background)
@@ -41,7 +37,7 @@ struct DriveDetailView: View {
                     Card { HStack { ProgressView(); Text("Scoring this drive…").foregroundStyle(.secondary) } }
                 } else if let err = r.processingError {
                     Card {
-                        Label(err, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Text(err).foregroundStyle(.orange)
                         Button("Try again") { model.reprocess(r) }.buttonStyle(.bordered)
                     }
                 }
@@ -69,8 +65,6 @@ struct DriveDetailView: View {
             Text("Removes the video, clips, sensor log and scores from this phone (and from your cloud account if synced).")
         }
     }
-
-    // MARK: Sections
 
     private func header(_ r: DriveRecord, _ a: DriveAnalysis?) -> some View {
         HStack(alignment: .firstTextBaseline) {
@@ -128,7 +122,7 @@ struct DriveDetailView: View {
                     .frame(maxWidth: .infinity)
             }
             if let mpg = a.obdMPG {
-                Label(String(format: "OBD-II measured %.1f mpg this drive (%.2f gal)", mpg, a.obdFuelGal ?? 0), systemImage: "fuelpump.fill")
+                Text(String(format: "OBD-II measured %.1f mpg this drive (%.2f gal)", mpg, a.obdFuelGal ?? 0))
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
@@ -149,7 +143,7 @@ struct DriveDetailView: View {
             }
             MomentTimeline(moments: visibleMoments(a), tripStartT: a.tripStartT) { selectedMoment = $0 }
             Button { showReflection = true } label: {
-                Label("Post-drive reflection", systemImage: "text.bubble.fill").frame(maxWidth: .infinity)
+                Text("Post-drive reflection").frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
         }
@@ -190,7 +184,6 @@ struct DriveDetailView: View {
     }
 
     private struct Note: Identifiable {
-        var symbol: String
         var text: String
         var id: String { text }
     }
@@ -198,16 +191,16 @@ struct DriveDetailView: View {
     private func noteItems(_ r: DriveRecord, _ a: DriveAnalysis) -> [Note] {
         var items: [Note] = []
         if !a.speedLimitsAvailable {
-            items.append(Note(symbol: "wifi.slash", text: "Speed limits weren't available when this drive was scored, so speeding wasn't checked."))
+            items.append(Note(text: "Speed limits weren't available when this drive was scored, so speeding wasn't checked."))
         }
         if drives.sidecar(r)?.videoInterrupted == true {
-            items.append(Note(symbol: "video.slash", text: "The camera stopped part-way (phone locked, call or heat). Sensors kept recording; later events have no clip."))
+            items.append(Note(text: "The camera stopped part-way (phone locked, call or heat). Sensors kept recording; later events have no clip."))
         }
         if !a.tailgatingAvailable && r.hasVideo {
-            items.append(Note(symbol: "car.2", text: "No vehicles were detected ahead, so following distance couldn't be measured."))
+            items.append(Note(text: "No vehicles were detected ahead, so following distance couldn't be measured."))
         }
         if a.malformedLines > 0 {
-            items.append(Note(symbol: "doc.badge.ellipsis", text: "\(a.malformedLines) damaged sensor line(s) were skipped (e.g. the phone shut down mid-write)."))
+            items.append(Note(text: "\(a.malformedLines) damaged sensor line(s) were skipped (e.g. the phone shut down mid-write)."))
         }
         return items
     }
@@ -218,7 +211,7 @@ struct DriveDetailView: View {
         if !items.isEmpty {
             Card {
                 ForEach(items) { item in
-                    Label(item.text, systemImage: item.symbol).font(.footnote).foregroundStyle(.secondary)
+                    Text(item.text).font(.footnote).foregroundStyle(.secondary)
                 }
                 if !a.speedLimitsAvailable {
                     Button("Retry speed limits") { model.reprocess(r) }.buttonStyle(.bordered)
@@ -231,11 +224,11 @@ struct DriveDetailView: View {
         Card {
             if r.hasVideo, drives.videoURL(r) != nil {
                 NavigationLink { PrivacyAuditView(record: r) } label: {
-                    Label("Privacy spot-check (20 random frames)", systemImage: "eye.slash")
+                    Text("Privacy spot-check (20 random frames)")
                 }
             }
             if let url = exportURL {
-                ShareLink(item: url) { Label("Share \(url.lastPathComponent)", systemImage: "square.and.arrow.up") }
+                ShareLink(item: url) { Text("Share \(url.lastPathComponent)") }
             } else {
                 Button {
                     exporting = true
@@ -245,7 +238,7 @@ struct DriveDetailView: View {
                     }
                 } label: {
                     HStack {
-                        Label("Export raw data for the Python processor", systemImage: "shippingbox")
+                        Text("Export raw data for the Python processor")
                         if exporting { Spacer(); ProgressView() }
                     }
                 }
@@ -272,7 +265,6 @@ struct SeverityBar: View {
 }
 
 enum DriveExport {
-    /// Zips a drive folder (drive.json, sensors JSONL, blurred video, analysis.json) for AirDrop / Files.
     static func zip(folder: URL, name: String) async -> URL? {
         await Task.detached(priority: .userInitiated) {
             var result: URL?

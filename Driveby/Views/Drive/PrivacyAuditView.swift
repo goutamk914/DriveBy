@@ -1,7 +1,3 @@
-//  PrivacyAuditView.swift — Driveby
-//  Phase 4 "done when": spot-check 20 random frames and confirm every visible plate and face is
-//  obscured — and know the miss rate well enough to state it honestly. Tap a frame to flag a leak.
-
 import AVFoundation
 import SwiftUI
 
@@ -21,7 +17,7 @@ struct PrivacyAuditView: View {
                 if loading {
                     ProgressView("Sampling frames…").frame(maxWidth: .infinity).padding(.top, 40)
                 } else if frames.isEmpty {
-                    ContentUnavailableView("No video", systemImage: "video.slash", description: Text("This drive's full video was deleted or never recorded."))
+                    ContentUnavailableView { Text("No video") } description: { Text("This drive's full video was deleted or never recorded.") }
                 } else {
                     Card {
                         let n = frames.count

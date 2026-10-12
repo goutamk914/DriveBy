@@ -1,9 +1,3 @@
-//  EventDetailView.swift — Driveby  (MomentDetailView)
-//  "Tap event → blurred clip + sensor trace overlay + plain-English cause."
-//  Works for every moment on the reflection timeline — scored events AND good moments.
-//  This interaction is what turns a number into coaching. The clip, the speed/acceleration
-//  traces and the lead-vehicle box all run on the same sensor clock, so they line up exactly.
-
 import AVFoundation
 import Charts
 import Observation
@@ -65,7 +59,6 @@ struct MomentDetailView: View {
     @State private var showTechnical = false
     @State private var sidecar: DriveSidecar?
     @State private var googlePlace: String?
-    /// The ±10 s of trace around the moment, filtered once (the playhead redraws ~10×/s).
     @State private var windowPts: [TracePoint] = []
 
     private var analysis: DriveAnalysis? { drives.analysis(record) }
@@ -73,13 +66,11 @@ struct MomentDetailView: View {
     private var isTurn: Bool { moment.kind == .harshCorner || moment.kind == .smoothTurn }
     private var center: Double { event.map { ClipExporter.clipCenter($0) } ?? ClipExporter.clipCenter(moment) }
 
-    /// Sensor time at the clip's first frame.
     private var clipStartSensorT: Double? {
         guard let vStart = sidecar?.videoStartT else { return nil }
         return vStart + ClipExporter.clipStartAsset(center: center, videoStartT: vStart)
     }
 
-    /// Sensor time at the playhead (or the moment itself when there is no clip).
     private var playheadT: Double {
         if let start = clipStartSensorT, let p = playback { return start + p.time }
         return moment.t
@@ -95,20 +86,20 @@ struct MomentDetailView: View {
                         Text(moment.headline).font(.headline)
                     }
                     if let place = googlePlace ?? moment.place {
-                        Label(place, systemImage: "mappin.and.ellipse").font(.subheadline).foregroundStyle(.secondary)
+                        Text(place).font(.subheadline).foregroundStyle(.secondary)
                     }
                     Text(moment.body).font(.body)
                     if !moment.tip.isEmpty {
-                        Label(moment.tip, systemImage: "lightbulb.fill").font(.subheadline).foregroundStyle(.secondary)
+                        Text(moment.tip).font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
                 if let lat = moment.lat, let lon = moment.lon {
                     HStack {
                         Button { openURL(GoogleMaps.mapsURL(lat: lat, lon: lon)) } label: {
-                            Label("Google Maps", systemImage: "map")
+                            Text("Google Maps")
                         }
                         Button { openURL(GoogleMaps.streetViewURL(lat: lat, lon: lon)) } label: {
-                            Label("Street View", systemImage: "binoculars")
+                            Text("Street View")
                         }
                     }
                     .buttonStyle(.bordered)
@@ -132,8 +123,6 @@ struct MomentDetailView: View {
         .task { await loadPlace() }
     }
 
-    // MARK: Clip + overlay
-
     @ViewBuilder private var clip: some View {
         if let p = playback {
             ZStack(alignment: .topLeading) {
@@ -144,12 +133,12 @@ struct MomentDetailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .onTapGesture { p.togglePlay() }
             .accessibilityLabel("Blurred clip of this moment. Tap to pause or play.")
-            Label("Faces and plates were blurred on the phone before this video was ever written to disk.", systemImage: "eye.slash")
+            Text("Faces and plates were blurred on the phone before this video was ever written to disk.")
                 .font(.caption).foregroundStyle(.secondary)
         } else {
             Card {
-                Label(record.hasVideo ? "No clip — the camera wasn't recording at this moment."
-                                      : "This drive was recorded with sensors only, so there's no video to replay.", systemImage: "video.slash")
+                Text(record.hasVideo ? "No clip — the camera wasn't recording at this moment."
+                                      : "This drive was recorded with sensors only, so there's no video to replay.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -160,7 +149,6 @@ struct MomentDetailView: View {
         let v = speedAt(t)
         let inMoment = t >= moment.t && t <= moment.tEnd
         return ZStack(alignment: .topLeading) {
-            // Lead-vehicle box + headway (following distance)
             if let lead = nearestLead(t), videoRect.width > 0 {
                 let vr = videoRect
                 let rect = CGRect(x: vr.minX + CGFloat(lead.bx) * vr.width,
@@ -195,8 +183,6 @@ struct MomentDetailView: View {
             }
         }
     }
-
-    // MARK: Sensor traces
 
     private var window: (Double, Double) { (center - 10, center + 10) }
 
@@ -246,7 +232,7 @@ struct MomentDetailView: View {
                 Button {
                     p.seek(to: moment.t - clipStart - 1)
                     p.player.play()
-                } label: { Label("Replay the moment", systemImage: "gobackward") }
+                } label: { Text("Replay the moment") }
                     .buttonStyle(.bordered)
             }
         }
@@ -276,8 +262,6 @@ struct MomentDetailView: View {
             }
         }
     }
-
-    // MARK: Helpers
 
     private func speedAt(_ t: Double) -> Double { interp(t, \.v) }
     private func accelAt(_ t: Double) -> Double { isTurn ? abs(interp(t, \.aLat)) : interp(t, \.a) }

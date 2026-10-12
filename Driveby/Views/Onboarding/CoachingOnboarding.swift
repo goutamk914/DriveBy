@@ -1,39 +1,28 @@
-//  CoachingOnboarding.swift — Driveby
-//  The safety agreement and the how-it-works explainer (both also reachable from Settings):
-//    • SafetyPoints          — the few things every driver agrees to, worded for their mode.
-//    • DisclaimerAcceptView  — those points + one "I understand" (shown once to older installs).
-//    • HowItWorksView        — how a phone "watches" a drive, in plain words.
-
 import SwiftUI
-
-// MARK: - Safety agreement
 
 struct SafetyPoints: View {
     var mode: DriverMode
 
-    private struct Point: Identifiable { var symbol: String; var color: Color; var text: String; var id: String { text } }
+    private struct Point: Identifiable { var text: String; var id: String { text } }
 
     private var points: [Point] {
         let shared = [
-            Point(symbol: "hand.raised.fill", color: .orange, text: "Eyes on the road, hands off the phone. Driveby speaks, so you never need to look."),
-            Point(symbol: "exclamationmark.triangle.fill", color: .yellow, text: "It can be wrong. Signs, traffic laws and the road always come first."),
+            Point(text: "Eyes on the road, hands off the phone. Driveby speaks, so you never need to look."),
+            Point(text: "It can be wrong. Signs, traffic laws and the road always come first."),
         ]
         guard mode == .newDriver else {
-            return [Point(symbol: "shield.lefthalf.filled", color: Theme.safety, text: "A coach, not a safety system. You're always the driver.")] + shared
+            return [Point(text: "A coach, not a safety system. You're always the driver.")] + shared
         }
         return [
-            Point(symbol: "xmark.octagon.fill", color: .red, text: "It doesn't replace your instructor, driver's ed or road test."),
-            Point(symbol: "person.2.fill", color: .blue, text: "Practise only with a licensed adult beside you, as your permit requires."),
+            Point(text: "It doesn't replace your instructor, driver's ed or road test."),
+            Point(text: "Practise only with a licensed adult beside you, as your permit requires."),
         ] + shared
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(points) { p in
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: p.symbol).foregroundStyle(p.color).font(.title3).frame(width: 26)
-                    Text(p.text).font(.subheadline)
-                }
+                Text(p.text).font(.subheadline)
             }
         }
         .padding(16)
@@ -66,9 +55,7 @@ struct DisclaimerAcceptView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Image(systemName: "person.badge.shield.checkmark.fill")
-                    .font(.system(size: 52)).foregroundStyle(.orange).padding(.top, 24)
-                Text("Before you drive").font(.largeTitle.weight(.bold))
+                Text("Before you drive").font(.roadSign(.largeTitle)).padding(.top, 24)
                 SafetyPoints(mode: settings.driverMode)
                 if accepting {
                     AgreeCheckbox(agreed: $agreed)
@@ -89,25 +76,23 @@ struct DisclaimerAcceptView: View {
     }
 }
 
-// MARK: - How it works
-
 struct HowItWorksView: View {
     var onContinue: (() -> Void)? = nil
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("How Driveby watches your drive").font(.largeTitle.weight(.bold)).padding(.top, 12)
+                Text("How Driveby watches your drive").font(.roadSign(.largeTitle)).padding(.top, 12)
                 Text("Mount the phone, tap Start, and drive normally.").font(.title3)
 
                 Card {
-                    step(1, "location.fill", .blue, "GPS → your speed",
+                    step(1, .blue, "GPS → your speed",
                          "The same GPS your maps app uses tells Driveby how fast you're going and where.")
-                    step(2, "gyroscope", .purple, "Motion sensors → braking & turning",
+                    step(2, .purple, "Motion sensors → braking & turning",
                          "Feels what a passenger feels: pushed forward when you brake hard, sideways in a sharp turn.")
-                    step(3, "map.fill", .green, "Map → speed limits & stop signs",
+                    step(3, .green, "Map → speed limits & stop signs",
                          "OpenStreetMap says what the limit is and where the stop signs are.")
-                    step(4, "video.fill", .red, "Camera → replay clips",
+                    step(4, .red, "Camera → replay clips",
                          "Records the road so you can rewatch a moment, and measures the gap to the car ahead. Faces and plates are blurred first.")
                 }
 
@@ -143,14 +128,14 @@ struct HowItWorksView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func step(_ n: Int, _ icon: String, _ color: Color, _ title: String, _ text: String) -> some View {
+    private func step(_ n: Int, _ color: Color, _ title: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
                 Circle().fill(color.opacity(0.15)).frame(width: 40, height: 40)
-                Image(systemName: icon).foregroundStyle(color)
+                Text("\(n)").font(.roadSign(.headline)).foregroundStyle(color)
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text("\(n). \(title)").font(.headline)
+                Text(title).font(.headline)
                 Text(text).font(.subheadline).foregroundStyle(.secondary)
             }
         }

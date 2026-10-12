@@ -1,8 +1,3 @@
-//  VehiclePickerView.swift — Driveby
-//  Onboarding → pick vehicle: tap a year, then SEARCH make + model ("honda civic", "chevy malibu"),
-//  then the engine/trim → EPA lookup via fueleconomy.gov.
-//  Free, no key, and a federal government data source. Manual entry if offline.
-
 import SwiftUI
 
 struct VehiclePickerView: View {
@@ -57,13 +52,12 @@ struct VehiclePickerView: View {
             Task {
                 await load {
                     let list = try await FuelEconomyAPI.makes(year: y)
-                    if year == y { makes = list }      // ignore a slow reply for a year no longer selected
+                    if year == y { makes = list }
                 }
                 await ensureModels()
             }
         }
         .onChange(of: query) { _, q in
-            // "2019 civic" → pick the year from the text.
             let p = VehicleSearch.parse(q, years: years.map(\.value), makes: makes.map(\.value))
             if let y = p.year, y != year {
                 year = y
@@ -74,9 +68,6 @@ struct VehiclePickerView: View {
         }
     }
 
-    // MARK: Year
-
-    /// A dropdown menu of model years (newest first) — not a scrolling picker.
     private var yearSection: some View {
         Section {
             Picker("Model year", selection: $year) {
@@ -94,8 +85,6 @@ struct VehiclePickerView: View {
         }
     }
 
-    // MARK: Search
-
     private var parsed: VehicleSearch.Parsed {
         VehicleSearch.parse(query, years: years.map(\.value), makes: makes.map(\.value))
     }
@@ -103,14 +92,13 @@ struct VehiclePickerView: View {
     private var searchSection: some View {
         Section {
             HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Search make and model, e.g. Honda Civic", text: $query)
                     .focused($searchFocused)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.words)
                     .submitLabel(.search)
                 if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    Button { query = "" } label: { Text("Clear").foregroundStyle(.secondary) }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Clear search")
                 }
@@ -133,7 +121,7 @@ struct VehiclePickerView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 ForEach(items.prefix(60)) { m in
-                    resultRow(title: "\(make) \(m.text)", symbol: "car.fill") { selectModel(make: make, model: m) }
+                    resultRow(title: "\(make) \(m.text)") { selectModel(make: make, model: m) }
                 }
             } header: {
                 Text(items.isEmpty ? make : "\(make) · \(items.count) model\(items.count == 1 ? "" : "s")")
@@ -146,7 +134,7 @@ struct VehiclePickerView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 ForEach(hits.prefix(80), id: \.self) { make in
-                    resultRow(title: make, symbol: "building.2") {
+                    resultRow(title: make) {
                         query = make + " "
                         searchFocused = true
                     }
@@ -157,30 +145,26 @@ struct VehiclePickerView: View {
         }
     }
 
-    private func resultRow(title: String, symbol: String, action: @escaping () -> Void) -> some View {
+    private func resultRow(title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
-                Label(title, systemImage: symbol).foregroundStyle(.primary)
+                Text(title).foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(.tertiary)
             }
         }
     }
 
-    // MARK: Trim
-
     private func trimSection(_ c: (make: String, model: EPAMenuItem)) -> some View {
         Section {
             ForEach(options) { o in
-                resultRow(title: o.text, symbol: "engine.combustion") { Task { await pick(o) } }
+                resultRow(title: o.text) { Task { await pick(o) } }
             }
             Button("Change car") { chosen = nil; options = [] }
         } header: {
             Text("3 · Engine / trim — \(year ?? "") \(c.make) \(c.model.text)")
         }
     }
-
-    // MARK: Loading
 
     private func load(_ work: () async throws -> Void) async {
         loading = true; error = nil
@@ -206,7 +190,6 @@ struct VehiclePickerView: View {
         await ensureModels()
     }
 
-    /// Fetch (once) the model list for the make typed in the search.
     private func ensureModels() async {
         guard let y = year, let make = parsed.make, modelsByMake[make] == nil else { return }
         await load {
@@ -225,7 +208,6 @@ struct VehiclePickerView: View {
                 let list = try await FuelEconomyAPI.options(year: y, make: make, model: model.value)
                 if chosen?.model.value == model.value { options = list }
             }
-            // Only one engine/trim: no need to make them choose.
             if options.count == 1, let only = options.first { await pick(only) }
         }
     }
@@ -246,7 +228,6 @@ struct VehiclePickerView: View {
 
 private struct ManualVehicleForm: View {
     var onPick: (Vehicle) -> Void
-    /// Oldest year the EPA list goes back to; the newest is next year's models.
     private static let firstYear = 1984
     private static let newestYear = Calendar.current.component(.year, from: Date()) + 1
     private static let typicalAge = 5

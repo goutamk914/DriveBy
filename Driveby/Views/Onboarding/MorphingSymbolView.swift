@@ -1,7 +1,3 @@
-//  MorphingSymbolView.swift — Driveby
-//  An SF Symbol that melts into the next one (blur + alpha-threshold) — the onboarding hero.
-//  Adapted from SwiftUI-Intro "Walkthrough+Morphing" by Balaji Venkatesh (MIT licence).
-
 import SwiftUI
 
 struct MorphingSymbolView: View {
@@ -40,7 +36,6 @@ struct MorphingSymbolView: View {
                 .blur(radius: radius)
                 .frame(width: config.frame.width, height: config.frame.height)
                 .onChange(of: radius) { _, newValue in
-                    // Swap the symbol at peak blur, so the change happens while it's a blob.
                     if newValue.rounded() == config.radius {
                         withAnimation(config.symbolAnimation) { displayingSymbol = nextSymbol }
                     }

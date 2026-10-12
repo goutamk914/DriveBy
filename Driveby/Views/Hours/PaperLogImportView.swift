@@ -1,8 +1,3 @@
-//  PaperLogImportView.swift — Driveby
-//  "Already logging on paper?" Snap or pick a photo of the log; Driveby reads the hours on the phone
-//  (LogScanner + PaperLog), shows what it found, and the driver confirms or corrects the numbers
-//  before they're added to the hours log as one entry. The photo itself is never stored.
-
 import PhotosUI
 import SwiftUI
 
@@ -37,7 +32,7 @@ struct PaperLogImportView: View {
                     Section { HStack(spacing: 12) { ProgressView(); Text("Reading your log…").foregroundStyle(.secondary) } }
                 }
                 if let error {
-                    Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+                    Section { Text(error).foregroundStyle(.orange) }
                 }
                 if let estimate { resultSections(estimate) }
             }
@@ -62,13 +57,10 @@ struct PaperLogImportView: View {
         }
     }
 
-    // MARK: Sections
-
     private var sourceSection: some View {
         Section {
             if pages.isEmpty {
-                Label("Take a photo of your driving log and Driveby will count the hours. The photo stays on your phone and isn't saved.",
-                      systemImage: "doc.text.viewfinder")
+                Text("Take a photo of your driving log and Driveby will count the hours. The photo stays on your phone and isn't saved.")
                     .font(.subheadline)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -83,10 +75,10 @@ struct PaperLogImportView: View {
                 }
             }
             if DocumentScanner.isSupported {
-                Button { showScanner = true } label: { Label("Scan with camera", systemImage: "camera.viewfinder") }
+                Button { showScanner = true } label: { Text("Scan with camera") }
             }
             PhotosPicker(selection: $pickerItems, maxSelectionCount: Self.maxPages, matching: .images) {
-                Label(pages.isEmpty ? "Choose from Photos" : "Choose different photos", systemImage: "photo.on.rectangle")
+                Text(pages.isEmpty ? "Choose from Photos" : "Choose different photos")
             }
         } footer: {
             Text("Up to \(Self.maxPages) pages. Works best flat, in good light, with the hours column in view.")
@@ -119,7 +111,7 @@ struct PaperLogImportView: View {
                         HStack {
                             Text(s.line).font(.caption).lineLimit(1)
                             Spacer()
-                            if s.night { Image(systemName: "moon.stars.fill").foregroundStyle(.indigo).font(.caption) }
+                            if s.night { Text("night").font(.caption).foregroundStyle(.indigo) }
                             Text(HoursSummary.hoursString(s.minutes * 60)).font(.caption.monospacedDigit())
                         }
                     }
@@ -133,8 +125,6 @@ struct PaperLogImportView: View {
         if e.fromWrittenTotal { return "Found the total written on your log." }
         return "Added up \(e.sessions.count) session\(e.sessions.count == 1 ? "" : "s") from your log."
     }
-
-    // MARK: Reading
 
     private func loadPhotos(_ items: [PhotosPickerItem]) async {
         guard !items.isEmpty else { return }
@@ -154,7 +144,6 @@ struct PaperLogImportView: View {
         await read(images)
     }
 
-    /// Reads the pages; if newer photos are picked meanwhile, this (older) result is dropped.
     private func read(_ images: [UIImage]) async {
         guard !images.isEmpty else { return }
         let token = UUID()
@@ -175,7 +164,6 @@ struct PaperLogImportView: View {
         reading = false
     }
 
-    /// Steppers move in 15-minute steps; start them on one.
     private static func rounded(_ minutes: Double) -> Int {
         Int((minutes / Double(minuteStep)).rounded()) * minuteStep
     }

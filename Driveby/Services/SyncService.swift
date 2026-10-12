@@ -1,12 +1,6 @@
-//  SyncService.swift — Driveby
-//  Accounts + persistent history (Tier 1) via Supabase. Uploads ONLY derived data:
-//  vehicles, fuel logs, drive summaries, numeric events, and (opt-in) blurred clips.
-//  After each sync it asks the server to recompute the public k-anonymous hazard map.
-
 import Foundation
 import Observation
 
-/// JSON null for absent optionals in PostgREST payloads.
 private func orNull(_ v: Any?) -> Any { v ?? NSNull() }
 
 @MainActor
@@ -47,14 +41,11 @@ final class SyncService {
         signedInEmail = client?.session?.email
     }
 
-    // MARK: Auth
-
     func signIn(email: String, password: String, create: Bool) async throws {
         guard let client else { throw SupabaseError.notConfigured }
         let s = create ? try await client.signUp(email: email, password: password)
                        : try await client.signIn(email: email, password: password)
         signedInEmail = s.email
-        // A different account may have signed in on this phone: resend everything.
         drives.markAllUnsynced()
         garage.markAllDirty()
         practiceLog.markAllDirty()
@@ -67,7 +58,6 @@ final class SyncService {
         status = .idle
     }
 
-    /// App Store guideline 5.1.1(v): in-app account deletion. Removes clips, then all rows (cascade).
     func deleteAccount() async throws {
         guard let client, let uid = client.session?.userId else { throw SupabaseError.notSignedIn }
         let clipPaths = (try? await allClipPaths(uid: uid)) ?? []
@@ -87,8 +77,6 @@ final class SyncService {
         return out
     }
 
-    // MARK: Sync
-
     func syncNow() async {
         guard let client, let uid = client.session?.userId else { return }
         if status == .syncing { return }
@@ -99,7 +87,6 @@ final class SyncService {
             dayFormatter.dateFormat = "yyyy-MM-dd"
             dayFormatter.locale = Locale(identifier: "en_US_POSIX")
 
-            // Pending deletions first.
             var doneDeletes: [String] = []
             for item in garage.pendingDeletes {
                 let parts = item.split(separator: ":").map(String.init)
@@ -117,7 +104,6 @@ final class SyncService {
             }
             drives.clearCloudDeletes(deletedDrives)
 
-            // Vehicles + fuel log.
             let vehicleRows: [[String: Any]] = garage.vehicles.filter { garage.dirty.contains($0.id) }.map { v -> [String: Any] in
                 var r: [String: Any] = ["id": v.id.uuidString.lowercased(), "user_id": uid, "make": v.make, "model": v.model,
                                         "year": v.year, "mass_kg": v.massKg, "regen_factor": v.regenFactor]
@@ -134,7 +120,6 @@ final class SyncService {
             try await client.upsert("fuel_logs", rows: fuelRows)
             garage.markSynced(garage.vehicles.map(\.id) + garage.fuelLogs.map(\.id))
 
-            // Supervised-hours log.
             var doneLogDeletes: [UUID] = []
             for id in practiceLog.pendingDeletes {
                 try await client.delete("practice_logs", equals: id.uuidString.lowercased())
@@ -150,7 +135,6 @@ final class SyncService {
             try await client.upsert("practice_logs", rows: logRows)
             practiceLog.markSynced(practiceLog.entries.map(\.id))
 
-            // Drives + events (+ clips).
             let knownVehicles = Set(garage.vehicles.map(\.id))
             for r in drives.records where r.processed && r.syncedAt == nil {
                 guard let a = drives.analysis(r) else { continue }
@@ -188,7 +172,6 @@ final class SyncService {
                 drives.update(updated)
             }
 
-            // Recompute the public k-anonymous aggregate (server function — no user data returned).
             _ = try? await client.rpc("publish_hazard_cells")
             status = .done(Date())
             await refreshHazardCells()

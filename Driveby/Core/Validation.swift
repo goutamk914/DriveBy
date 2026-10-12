@@ -1,13 +1,3 @@
-//  Validation.swift — Driveby
-//  Phase 3.3 / 3.4: prove the efficiency score is real by regressing it against
-//  ground-truth fuel economy, and REPORT IT HONESTLY (always show n and r²).
-//
-//  Two ground truths:
-//   • Tank-to-tank MPG from the fuel log (n ≈ number of fill-ups)
-//   • Per-trip MPG from the OBD-II dongle (n ≈ number of drives)
-//  Target is MPG ÷ EPA combined when the EPA rating is known (controls for the car).
-//  Mirrors processor/validate.py and notebooks/validation.ipynb.
-
 import Foundation
 
 struct DriveForValidation: Sendable {
@@ -28,14 +18,14 @@ struct TankInterval: Identifiable, Sendable {
     var mpg: Double
     var recordedMiles: Double
     var driveIds: [UUID]
-    var meanComponents: EfficiencyComponents?   // distance-weighted
+    var meanComponents: EfficiencyComponents?
     var coverage: Double { odometerMiles > 0 ? min(recordedMiles / odometerMiles, 1) : 0 }
 }
 
 struct ValidationPoint: Identifiable, Hashable, Sendable {
     var id: String
-    var score: Double          // x: efficiency score under the model
-    var target: Double         // y: MPG or MPG / EPA combined
+    var score: Double
+    var target: Double
     var label: String
     var lowCoverage: Bool
 }
@@ -48,7 +38,6 @@ struct ValidationResult: Sendable {
     var fit: Numerics.LinearFit?
     var n: Int { points.count }
 
-    /// The honest sentence (Step 3.4) — n first, then r², then what it means.
     var honestSummary: String {
         guard let fit else {
             return n < 3 ? "n=\(n) — not enough data yet. Keep logging every fill-up." : "n=\(n) — no linear relationship could be fitted."
@@ -68,8 +57,6 @@ struct ValidationResult: Sendable {
 
 enum Validation {
 
-    /// Tank-to-tank intervals between consecutive FULL fills (partial fills roll forward).
-    /// A drive belongs to the interval if it started after the previous full fill and before this one.
     static func tankIntervals(logs: [FuelLog], drives: [DriveForValidation], vehicleId: UUID?) -> [TankInterval] {
         let mine = logs.filter { vehicleId == nil || $0.vehicleId == vehicleId }.sorted { $0.odometerMi < $1.odometerMi }
         var result: [TankInterval] = []
@@ -97,7 +84,6 @@ enum Validation {
         return result
     }
 
-    /// Distance-weighted mean of each component across drives (Step 3.3, "without OBD").
     static func weightedMean(_ drives: [DriveForValidation]) -> EfficiencyComponents? {
         let total = drives.map(\.miles).reduce(0, +)
         guard total > 0 else { return nil }
@@ -129,7 +115,7 @@ enum Validation {
         for d in drives {
             guard let gal = d.obdFuelGal, gal > 0.01, d.miles > 0.5 else { continue }
             let mpg = d.miles / gal
-            guard mpg > 3 && mpg < 150 else { continue } // reject sensor nonsense
+            guard mpg > 3 && mpg < 150 else { continue }
             points.append(ValidationPoint(id: d.id.uuidString, score: model.efficiencyScore(d.components),
                                           target: epaCombined.map { mpg / $0 } ?? mpg,
                                           label: String(format: "%.1f mi", d.miles), lowCoverage: false))
@@ -138,9 +124,6 @@ enum Validation {
                                 fit: Numerics.linearFit(x: points.map(\.score), y: points.map(\.target)))
     }
 
-    /// Step 3.3 — regress target on normalised components, negate and rescale the coefficients into
-    /// weights that sum to 1. Ridge (λ) keeps n≈9 from producing wild weights. Returns nil if the data
-    /// doesn't support any component (all coefficients ≥ 0) or there are too few rows.
     static func fitWeights(rows: [(components: EfficiencyComponents, target: Double)], base: ScoringModel,
                            lambda: Double = 0.5) -> ScoringModel? {
         guard rows.count >= 6 else { return nil }

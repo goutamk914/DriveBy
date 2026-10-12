@@ -1,17 +1,8 @@
-//
-//  DrivebyApp.swift
-//  Driveby
-//
-//  Created by Goutam Kanakadandi on 10/4/26.
-//
-//  A coaching app that scores how safely and efficiently you drive, proves the efficiency
-//  score against real fuel data, and never records a single thing about anyone else.
-//
-
 import SwiftUI
 
 @main
 struct DrivebyApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -27,6 +18,7 @@ struct DrivebyApp: App {
                 .environment(model.recorder)
                 .environment(model.obd)
                 .preferredColorScheme(model.settings.appearance.colorScheme)
+                .fontDesign(.rounded)
                 .task { await model.bootstrap() }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -34,5 +26,13 @@ struct DrivebyApp: App {
                 Task { await model.sync.syncNow() }
             }
         }
+    }
+}
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        Typography.styleNavigationBars()
+        return true
     }
 }

@@ -1,13 +1,3 @@
-//  LiveCoach.swift — Driveby
-//  Real-time spoken coaching while a drive is recording. Watches the same signals the post-drive
-//  scorer uses and decides WHEN to say something:
-//    • GPS speed (1 Hz)          → hard braking, hard acceleration, speeding, smooth stops
-//    • yaw rate × speed          → sharp turns (orientation-free, like the scorer)
-//    • camera distance to lead   → following too closely
-//  Uses the Step 2.2 thresholds (Thresholds) so a spoken cue and the post-drive event agree, and is
-//  rate-limited so it never nags. Speaking and the on-screen banner live in the app (VoiceCoach).
-//  Pure Foundation — unit-tested in Tests/DrivebyCoreTests/LiveCoachTests.swift.
-
 import Foundation
 
 enum LiveCue: String, CaseIterable, Sendable {
@@ -15,7 +5,6 @@ enum LiveCue: String, CaseIterable, Sendable {
 
     var isPositive: Bool { self == .smoothStop }
 
-    /// What Driveby says out loud: terse for regular drivers, a little more guidance for new drivers.
     func phrase(mode: DriverMode, limitMph: Int?) -> String {
         let learner = mode == .newDriver
         switch self {
@@ -35,7 +24,6 @@ enum LiveCue: String, CaseIterable, Sendable {
         }
     }
 
-    /// Two or three words for the glanceable banner on the recording screen.
     func shortText(limitMph: Int?) -> String {
         switch self {
         case .hardBrake: return "Hard brake"
@@ -55,24 +43,15 @@ struct LiveCueEvent: Equatable, Sendable {
 }
 
 struct LiveCoach: Sendable {
-    /// Seconds between any two cues — one thing at a time.
     static let minGap = 8.0
-    /// Seconds before the same warning may repeat.
     static let repeatGap = 45.0
-    /// Praise is rarer than warnings, or it stops meaning anything.
     static let praiseRepeatGap = 180.0
-    /// GPS fixes further apart than this aren't trusted for acceleration (tunnels, lost signal).
     static let maxFixGap = 2.5
     static let minFixGap = 0.2
-    /// A stop only counts as a "smooth stop" if it began from at least this speed (~13 mph).
     static let smoothStopFrom = 6.0
-    /// Decelerations gentler than this (m/s²) are coasting, not braking toward a stop.
     static let brakingOnset = -0.3
-    /// Speeding up by more than this (m/s²) cancels a stop in progress.
     static let stopCancelAccel = 0.5
-    /// Seconds of neither braking nor accelerating after which a slow-down no longer counts as one stop.
     static let maxCoastSteps = 5
-    /// The camera reports many times a second; a longer silence means it was interrupted.
     static let maxHeadwayGap = 2.5
 
     let mode: DriverMode
@@ -82,7 +61,6 @@ struct LiveCoach: Sendable {
     private var cornerSince: Double?
     private var closeSince: Double?
     private var lastHeadwayT: Double?
-    /// Hardest deceleration (m/s²) so far in the current slow-down toward a stop.
     private var stopMinAccel: Double?
     private var coastSteps = 0
     private var lastSpoken = -Double.infinity
@@ -90,11 +68,6 @@ struct LiveCoach: Sendable {
 
     init(mode: DriverMode) { self.mode = mode }
 
-    // MARK: Inputs
-
-    /// GPS speed (m/s) and the speed limit where the car is, if known. `posted` is false when the limit is
-    /// only a road-type estimate (OSM way without a maxspeed tag): speeding is still flagged, but the
-    /// number isn't announced as if it were on a sign.
     mutating func speed(t: Double, v: Double, limitMps: Double?, posted: Bool = true) -> LiveCueEvent? {
         defer { lastFix = (t, v) }
         var event: LiveCueEvent?
@@ -110,7 +83,6 @@ struct LiveCoach: Sendable {
         return event
     }
 
-    /// Yaw rate (rad/s, about the vertical) with the latest GPS speed.
     mutating func yaw(t: Double, yawRate: Double, v: Double) -> LiveCueEvent? {
         let lateral = abs(v * yawRate)
         guard v > Thresholds.tripStartSpeed, lateral >= Thresholds.harshCornerA else {
@@ -122,7 +94,6 @@ struct LiveCoach: Sendable {
         return t - since >= Thresholds.accelSustain ? emit(.sharpTurn, t: t) : nil
     }
 
-    /// Camera distance (m) to the vehicle ahead, nil when there isn't one.
     mutating func headway(t: Double, leadDistance: Double?, v: Double) -> LiveCueEvent? {
         defer { lastHeadwayT = t }
         if let last = lastHeadwayT, t - last > Self.maxHeadwayGap { closeSince = nil }
@@ -134,8 +105,6 @@ struct LiveCoach: Sendable {
         closeSince = since
         return t - since >= Thresholds.tailgateSustain ? emit(.tailgating, t: t) : nil
     }
-
-    // MARK: Detectors
 
     private func longitudinalAccel(t: Double, v: Double) -> Double? {
         guard let p = lastFix else { return nil }
@@ -155,8 +124,6 @@ struct LiveCoach: Sendable {
         return emit(.speeding, t: t, limitMph: posted ? Self.postedMph(limit) : nil)
     }
 
-    /// Follows a slow-down to a stop; praises it (new drivers) if no step of it — including the last —
-    /// braked harder than "smooth". A long coast or speeding up again ends the slow-down.
     private mutating func trackStop(a: Double, v: Double, previousV: Double, t: Double) -> LiveCueEvent? {
         if a < Self.brakingOnset {
             coastSteps = 0
@@ -176,8 +143,6 @@ struct LiveCoach: Sendable {
         return hardest > SkillThresholds.smoothBrakeA ? emit(.smoothStop, t: t) : nil
     }
 
-    // MARK: Rate limiting
-
     private mutating func emit(_ cue: LiveCue, t: Double, limitMph: Int? = nil) -> LiveCueEvent? {
         if cue.isPositive && mode != .newDriver { return nil }
         let repeatGap = cue.isPositive ? Self.praiseRepeatGap : Self.repeatGap
@@ -187,7 +152,6 @@ struct LiveCoach: Sendable {
         return LiveCueEvent(cue: cue, t: t, limitMph: limitMph)
     }
 
-    /// US limits are posted in 5 mph steps; OSM km/h tags convert to odd values (56 km/h → 34.8 mph).
     static func postedMph(_ limitMps: Double) -> Int {
         Int(((limitMps * Units.mpsToMph) / 5).rounded()) * 5
     }

@@ -1,10 +1,6 @@
-//  AppSettings.swift — Driveby
-//  User preferences, persisted in UserDefaults.
-
 import Foundation
 import Observation
 
-/// Light / dark appearance. `system` follows the phone's setting.
 enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
     case system, light, dark
     var id: String { rawValue }
@@ -24,38 +20,30 @@ final class AppSettings {
 
     var onboardingComplete: Bool { didSet { d.set(onboardingComplete, forKey: "onboardingComplete") } }
     var appearance: AppAppearance { didSet { d.set(appearance.rawValue, forKey: "appearance") } }
-    /// Speak short coaching cues while recording (hard brake, speeding, too close…).
     var voiceCoach: Bool { didSet { d.set(voiceCoach, forKey: "voiceCoach") } }
+    var quickStartOnLaunch: Bool { didSet { d.set(quickStartOnLaunch, forKey: "quickStartOnLaunch") } }
+    var introSeenVersion: Int { didSet { d.set(introSeenVersion, forKey: "introSeenVersion") } }
     var safetyRulesAcceptedAt: Date? { didSet { d.set(safetyRulesAcceptedAt, forKey: "safetyRulesAcceptedAt") } }
     var activeVehicleId: UUID? { didSet { d.set(activeVehicleId?.uuidString, forKey: "activeVehicleId") } }
 
-    // Recording
     var recordVideo: Bool { didSet { d.set(recordVideo, forKey: "recordVideo") } }
     var autoStart: Bool { didSet { d.set(autoStart, forKey: "autoStart") } }
     var autoStop: Bool { didSet { d.set(autoStop, forKey: "autoStop") } }
     var detectionHz: Double { didSet { d.set(detectionHz, forKey: "detectionHz") } }
-    /// Focal length (px at 1280-wide video) from tools/calibrate_camera.py; 0 = use AVFoundation intrinsics.
     var focalOverride: Double { didSet { d.set(focalOverride, forKey: "focalOverride") } }
 
-    // Storage
-    /// Delete full drive videos after N days (event clips are always kept). 0 = keep forever.
     var keepFullVideoDays: Int { didSet { d.set(keepFullVideoDays, forKey: "keepFullVideoDays") } }
 
-    // Money
     var defaultFuelPrice: Double { didSet { d.set(defaultFuelPrice, forKey: "defaultFuelPrice") } }
 
-    // Cloud
     var uploadClips: Bool { didSet { d.set(uploadClips, forKey: "uploadClips") } }
     var contributeToHazardMap: Bool { didSet { d.set(contributeToHazardMap, forKey: "contributeToHazardMap") } }
     var supabaseURLOverride: String { didSet { d.set(supabaseURLOverride, forKey: "supabaseURLOverride") } }
     var supabaseKeyOverride: String { didSet { d.set(supabaseKeyOverride, forKey: "supabaseKeyOverride") } }
 
-    // Coaching
     var driverMode: DriverMode { didSet { d.set(driverMode.rawValue, forKey: "driverMode") } }
     var disclaimerAcceptedAt: Date? { didSet { d.set(disclaimerAcceptedAt, forKey: "disclaimerAcceptedAt") } }
-    /// Default licensed adult who supervises practice drives (pre-filled in the checklist).
     var defaultSupervisor: String { didSet { d.set(defaultSupervisor, forKey: "defaultSupervisor") } }
-    /// Printed on the hours-log PDF only (never uploaded).
     var learnerName: String { didSet { d.set(learnerName, forKey: "learnerName") } }
     var hoursTotalTarget: Double { didSet { d.set(hoursTotalTarget, forKey: "hoursTotalTarget") } }
     var hoursNightTarget: Double { didSet { d.set(hoursNightTarget, forKey: "hoursNightTarget") } }
@@ -68,7 +56,6 @@ final class AppSettings {
                          label: hoursTotalTarget == 45 && hoursNightTarget == 15 ? "Virginia (under 18)" : "Custom")
     }
 
-    // OBD-II
     var obdPeripheralId: String? { didSet { d.set(obdPeripheralId, forKey: "obdPeripheralId") } }
     var obdEnabled: Bool { didSet { d.set(obdEnabled, forKey: "obdEnabled") } }
 
@@ -76,13 +63,15 @@ final class AppSettings {
         d.register(defaults: [
             "recordVideo": true, "autoStart": false, "autoStop": true, "detectionHz": 15.0,
             "focalOverride": 0.0, "keepFullVideoDays": 14, "defaultFuelPrice": 3.40,
-            "uploadClips": false, "contributeToHazardMap": true, "obdEnabled": false, "voiceCoach": true,
+            "uploadClips": false, "contributeToHazardMap": true, "obdEnabled": false, "voiceCoach": true, "quickStartOnLaunch": true, "introSeenVersion": 0,
             "appearance": AppAppearance.system.rawValue,
             "driverMode": DriverMode.regular.rawValue, "hoursTotalTarget": 45.0, "hoursNightTarget": 15.0,
         ])
         onboardingComplete = d.bool(forKey: "onboardingComplete")
         appearance = AppAppearance(rawValue: d.string(forKey: "appearance") ?? "") ?? .system
         voiceCoach = d.bool(forKey: "voiceCoach")
+        quickStartOnLaunch = d.bool(forKey: "quickStartOnLaunch")
+        introSeenVersion = d.integer(forKey: "introSeenVersion")
         safetyRulesAcceptedAt = d.object(forKey: "safetyRulesAcceptedAt") as? Date
         activeVehicleId = d.string(forKey: "activeVehicleId").flatMap(UUID.init(uuidString:))
         recordVideo = d.bool(forKey: "recordVideo")
@@ -109,10 +98,11 @@ final class AppSettings {
 
     func resetAll() {
         for key in d.dictionaryRepresentation().keys { d.removeObject(forKey: key) }
-        // Reload so the screens show the defaults straight away (not only after a relaunch).
         onboardingComplete = d.bool(forKey: "onboardingComplete")
         appearance = AppAppearance(rawValue: d.string(forKey: "appearance") ?? "") ?? .system
         voiceCoach = d.bool(forKey: "voiceCoach")
+        quickStartOnLaunch = d.bool(forKey: "quickStartOnLaunch")
+        introSeenVersion = d.integer(forKey: "introSeenVersion")
         safetyRulesAcceptedAt = d.object(forKey: "safetyRulesAcceptedAt") as? Date
         activeVehicleId = d.string(forKey: "activeVehicleId").flatMap(UUID.init(uuidString:))
         recordVideo = d.bool(forKey: "recordVideo")

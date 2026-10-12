@@ -1,5 +1,3 @@
-//  SettingsView.swift — Driveby
-
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -20,7 +18,6 @@ struct SettingsView: View {
     @State private var showNewDriverSetup = false
     @State private var importPaperLog = false
 
-    /// Switching on opens the new-driver setup (the mode changes when it's finished); switching off is immediate.
     private var newDriverToggle: Binding<Bool> {
         Binding(get: { settings.isNewDriver },
                 set: { on in if on { showNewDriverSetup = true } else { settings.driverMode = .regular } })
@@ -38,6 +35,7 @@ struct SettingsView: View {
                 }
                 Section {
                     Toggle("Voice coach while driving", isOn: $settings.voiceCoach)
+                    Toggle("Quick start when Driveby opens", isOn: $settings.quickStartOnLaunch)
                     Toggle("I'm a new driver", isOn: newDriverToggle)
                     if settings.isNewDriver {
                         TextField("Usual supervising driver", text: $settings.defaultSupervisor)
@@ -45,7 +43,7 @@ struct SettingsView: View {
                         NavigationLink { HoursTargetForm() } label: {
                             LabeledContent("Hours requirement", value: "\(Int(settings.hoursTotalTarget)) h · \(Int(settings.hoursNightTarget)) at night")
                         }
-                        Button { importPaperLog = true } label: { Label("Import paper log photo", systemImage: "doc.text.viewfinder") }
+                        Button { importPaperLog = true } label: { Text("Import paper log photo") }
                     }
                 } header: { Text("Driving") } footer: {
                     Text(settings.driverMode.summary)
@@ -61,12 +59,12 @@ struct SettingsView: View {
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if model.activeVehicle?.id == v.id { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                                if model.activeVehicle?.id == v.id { Text("Active").font(.caption.weight(.semibold)).foregroundStyle(.tint) }
                             }
                         }
                     }
-                    Button { addVehicle = true } label: { Label("Add vehicle", systemImage: "plus") }
-                    NavigationLink { FuelLogView() } label: { Label("Fuel log", systemImage: "fuelpump.fill") }
+                    Button { addVehicle = true } label: { Text("Add vehicle") }
+                    NavigationLink { FuelLogView() } label: { Text("Fuel log") }
                 }
                 Section {
                     Toggle("Record video (blurred on device)", isOn: $settings.recordVideo)
@@ -74,8 +72,8 @@ struct SettingsView: View {
                     Picker("Detection rate", selection: $settings.detectionHz) {
                         Text("6 Hz (coolest)").tag(6.0); Text("10 Hz").tag(10.0); Text("15 Hz (default)").tag(15.0); Text("30 Hz (every frame)").tag(30.0)
                     }
-                    NavigationLink { MountCheckView() } label: { Label("Mount check", systemImage: "camera.viewfinder") }
-                    NavigationLink { CalibrationView() } label: { Label("Camera calibration", systemImage: "ruler") }
+                    NavigationLink { MountCheckView() } label: { Text("Mount check") }
+                    NavigationLink { CalibrationView() } label: { Text("Camera calibration") }
                 } header: { Text("Recording") } footer: {
                     Text("Higher detection rates blur and measure following distance more often but make the phone warmer.")
                 }
@@ -93,7 +91,7 @@ struct SettingsView: View {
                     Toggle("Contribute to the hazard map", isOn: $settings.contributeToHazardMap)
                     Toggle("Back up blurred event clips", isOn: $settings.uploadClips)
                         .disabled(!sync.isSignedIn)
-                    NavigationLink { PrivacyView() } label: { Label("What leaves my phone", systemImage: "lock.shield") }
+                    NavigationLink { PrivacyView() } label: { Text("What leaves my phone") }
                 } header: { Text("Privacy") } footer: {
                     Text("Raw video never exists — faces and plates are blurred before anything is written. Hazard contributions are pooled with k-anonymity (≥\(Thresholds.kEvents) events from ≥\(Thresholds.kUsers) drivers).")
                 }
@@ -130,12 +128,13 @@ struct SettingsView: View {
                 } header: { Text("Storage") } footer: { Text("Event clips are always kept; only full-length drive videos are pruned.") }
                 Section("About") {
                     NavigationLink { DisclaimerAcceptView(accepting: false) } label: {
-                        Label("Not a driving instructor", systemImage: "person.badge.shield.checkmark")
+                        Text("Not a driving instructor")
                     }
-                    NavigationLink { HowItWorksView() } label: { Label("How Driveby watches your drive", systemImage: "questionmark.circle") }
-                    NavigationLink { SafetyRulesView(accepting: false) } label: { Label("Safety rules", systemImage: "hand.raised") }
-                    NavigationLink { AboutView() } label: { Label("About Driveby", systemImage: "info.circle") }
-                    NavigationLink { DeveloperView() } label: { Label("Developer", systemImage: "hammer") }
+                    NavigationLink { HowItWorksView() } label: { Text("How Driveby watches your drive") }
+                    Button { settings.introSeenVersion = 0 } label: { Text("Replay the intro") }
+                    NavigationLink { SafetyRulesView(accepting: false) } label: { Text("Safety rules") }
+                    NavigationLink { AboutView() } label: { Text("About Driveby") }
+                    NavigationLink { DeveloperView() } label: { Text("Developer") }
                 }
             }
             .navigationTitle("Settings")
@@ -188,7 +187,7 @@ struct SettingsView: View {
     @ViewBuilder private var accountSection: some View {
         Section {
             if !sync.isConfigured {
-                Label("Local-only mode", systemImage: "iphone")
+                Text("Local-only mode")
                 Text("Cloud sync isn't configured in this build (Config.plist). Everything works on this phone.")
                     .font(.footnote).foregroundStyle(.secondary)
             } else if let email = sync.signedInEmail {
@@ -210,7 +209,7 @@ struct SettingsView: View {
                 Button("Sign out") { Task { await sync.signOut() } }
                 Button("Delete account…", role: .destructive) { confirmDeleteAccount = true }
             } else {
-                Button { showAccount = true } label: { Label("Sign in or create an account", systemImage: "person.crop.circle.badge.plus") }
+                Button { showAccount = true } label: { Text("Sign in or create an account") }
                 Text("Back up your history and contribute to the district hazard map.").font(.footnote).foregroundStyle(.secondary)
             }
         } header: { Text("Account") }

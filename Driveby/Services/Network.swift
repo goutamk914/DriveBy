@@ -1,7 +1,3 @@
-//  Network.swift — Driveby
-//  Free, key-less public data sources: OpenStreetMap Overpass (speed limits) and the EPA's
-//  fueleconomy.gov web service (baseline MPG — a federal government data source).
-
 import Foundation
 
 enum HTTP {
@@ -15,9 +11,6 @@ enum HTTP {
     }()
 }
 
-// MARK: - Overpass (Step 2.3)
-
-/// Fetches OSM ways tile by tile, caching every tile on disk — "Overpass rate-limits and will refuse you mid-demo".
 actor OverpassClient {
     static let shared = OverpassClient()
     private let endpoints = [URL(string: "https://overpass-api.de/api/interpreter")!,
@@ -31,8 +24,6 @@ actor OverpassClient {
 
     struct MapData: Sendable { var ways: [OSMWay]; var controls: [OSMControl] }
 
-    /// All ways (speed limits) + stop signs / signals for the tiles, or nil if any tile couldn't be
-    /// obtained (speeding and stop signs are then reported as unavailable).
     func mapData(for tiles: [SpeedLimits.Tile]) async -> MapData? {
         var byId: [Int64: OSMWay] = [:]
         var tileData: [Data] = []
@@ -74,12 +65,9 @@ actor OverpassClient {
             } catch {}
             try? await Task.sleep(nanoseconds: UInt64(1_500_000_000) * UInt64(attempt + 1))
         }
-        // Stale cache beats nothing.
         return try? Data(contentsOf: file)
     }
 }
-
-// MARK: - fueleconomy.gov (EPA)
 
 struct EPAMenuItem: Hashable, Identifiable {
     var text: String
@@ -125,7 +113,6 @@ enum FuelEconomyAPI {
         } catch let e as Failure { throw e } catch { throw Failure.offline }
     }
 
-    /// The service returns `menuItem` as an ARRAY, or as a single OBJECT when there is exactly one item.
     private static func menu(_ obj: Any) -> [EPAMenuItem] {
         guard let root = obj as? [String: Any] else { return [] }
         let raw: [[String: Any]]
@@ -160,7 +147,6 @@ enum FuelEconomyAPI {
         menu(try await get("/menu/model", query: [URLQueryItem(name: "year", value: year), URLQueryItem(name: "make", value: make)]))
     }
 
-    /// Trims / engine options; `value` is the EPA vehicle id.
     static func options(year: String, make: String, model: String) async throws -> [EPAMenuItem] {
         menu(try await get("/menu/options", query: [URLQueryItem(name: "year", value: year), URLQueryItem(name: "make", value: make),
                                                     URLQueryItem(name: "model", value: model)]))

@@ -1,8 +1,3 @@
-//  HomeView.swift — Driveby
-//  One big Start button, your last drive's two scores, and recent drives. Regular drivers start with
-//  one tap; new drivers go through the supervisor checklist and also see permit hours and what to
-//  practise next. Regular drivers get a quiet way to switch new-driver mode on.
-
 import SwiftUI
 
 struct HomeView: View {
@@ -12,7 +7,6 @@ struct HomeView: View {
     @Environment(RecordingController.self) private var recorder
     @State private var showChecklist = false
     @State private var showNewDriverSetup = false
-    /// Set by the checklist; acted on once its sheet has fully closed so the recorder cover can appear.
     @State private var pendingStart: (supervisor: String, auto: Bool)?
 
     private static let recentCount = 3
@@ -50,14 +44,12 @@ struct HomeView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink { DriveListView() } label: { Image(systemName: "list.bullet") }
+                    NavigationLink { DriveListView() } label: { Text("All drives") }
                         .accessibilityLabel("All drives")
                 }
             }
         }
     }
-
-    // MARK: Starting
 
     private func begin(supervisor: String?, auto: Bool) {
         let vehicle = model.activeVehicle?.id
@@ -71,8 +63,6 @@ struct HomeView: View {
         begin(supervisor: p.supervisor, auto: p.auto)
     }
 
-    // MARK: Sections
-
     private var startCard: some View {
         VStack(spacing: 14) {
             Button {
@@ -82,8 +72,7 @@ struct HomeView: View {
                     Circle().fill(Color.red.gradient).frame(width: 150, height: 150)
                         .shadow(color: .red.opacity(0.35), radius: 16, y: 8)
                     VStack(spacing: 4) {
-                        Image(systemName: "record.circle").font(.system(size: 40, weight: .semibold))
-                        Text("Start drive").font(.headline)
+                        Text("Start drive").font(.roadSign(.title2))
                     }
                     .foregroundStyle(.white)
                 }
@@ -96,7 +85,7 @@ struct HomeView: View {
                     .font(.subheadline.weight(.medium))
             }
 
-            Label(model.activeVehicle?.displayName ?? "No car set", systemImage: "car.side.fill")
+            Text(model.activeVehicle?.displayName ?? "No car set")
                 .font(.footnote).foregroundStyle(.secondary)
 
             if let msg = recorder.message, recorder.phase == .idle {
@@ -136,7 +125,7 @@ struct HomeView: View {
             HStack {
                 SectionHeader(title: "Permit hours")
                 Spacer()
-                if h.complete { Label("Done", systemImage: "checkmark.seal.fill").foregroundStyle(.green).font(.subheadline.weight(.semibold)) }
+                if h.complete { Text("Done").foregroundStyle(.green).font(.subheadline.weight(.semibold)) }
             }
             ProgressView(value: min(h.totalHours, h.requirement.totalHours), total: max(h.requirement.totalHours, 1)) {
                 Text(String(format: "%.1f of %.0f hours", h.totalHours, h.requirement.totalHours)).font(.caption)
@@ -153,9 +142,9 @@ struct HomeView: View {
         if let f = model.practicePlan().first {
             Card {
                 SectionHeader(title: "Practise next")
-                Label(f.title, systemImage: f.skill?.symbol ?? "star.fill").font(.headline)
+                Text(f.title).font(.headline)
                 if let first = f.steps.first {
-                    Label(first, systemImage: "1.circle.fill").font(.footnote)
+                    Text(first).font(.footnote)
                 }
             }
         }
@@ -187,7 +176,6 @@ struct HomeView: View {
     private var newDriverRow: some View {
         Button { showNewDriverSetup = true } label: {
             HStack(spacing: 12) {
-                Image(systemName: "graduationcap.fill").font(.title3).foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("New driver?").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                     Text("Log permit hours and import your paper log.").font(.caption).foregroundStyle(.secondary)
@@ -214,7 +202,7 @@ struct DriveRow: View {
                     Text(Fmt.time.string(from: record.startedAt))
                     Text("·")
                     Text(Fmt.miles(record.distanceM))
-                    if record.hasVideo { Image(systemName: "video.fill").font(.caption2) }
+                    if record.hasVideo { Text("· video") }
                 }
                 .font(.caption).foregroundStyle(.secondary)
             }
@@ -226,7 +214,7 @@ struct DriveRow: View {
                 EfficiencyChip(score: record.efficiencyScore)
                 SafetyChip(score: record.safetyScore)
             } else if record.processingError != nil {
-                Label("Not scored", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                Text("Not scored").font(.caption).foregroundStyle(.orange)
             } else {
                 Text("Pending").font(.caption).foregroundStyle(.secondary)
             }
@@ -277,7 +265,7 @@ struct DriveListView: View {
                             }
                         }
                         .swipeActions {
-                            Button(role: .destructive) { model.deleteDrive(r) } label: { Label("Delete", systemImage: "trash") }
+                            Button(role: .destructive) { model.deleteDrive(r) } label: { Text("Delete") }
                         }
                     }
                 }
@@ -285,7 +273,7 @@ struct DriveListView: View {
         }
         .overlay {
             if drives.records.isEmpty {
-                ContentUnavailableView("No drives yet", systemImage: "car", description: Text("Recorded drives appear here."))
+                ContentUnavailableView { Text("No drives yet") } description: { Text("Recorded drives appear here.") }
             }
         }
         .navigationTitle("All drives")

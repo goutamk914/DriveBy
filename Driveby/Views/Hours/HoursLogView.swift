@@ -1,8 +1,3 @@
-//  HoursLogView.swift — Driveby
-//  The "Hours" tab: supervised practice time toward the learner's-permit requirement
-//  (Virginia, under 18: 45 hours, 15 of them after sunset). Recorded drives are logged automatically;
-//  drives done without the app can be added by hand. Export as CSV or a printable PDF.
-
 import SwiftUI
 
 struct HoursLogView: View {
@@ -42,10 +37,10 @@ struct HoursLogView: View {
 
                 Section {
                     if let pdfURL {
-                        ShareLink(item: pdfURL) { Label("Printable log (PDF)", systemImage: "doc.richtext") }
+                        ShareLink(item: pdfURL) { Text("Printable log (PDF)") }
                     }
                     if let csvURL {
-                        ShareLink(item: csvURL) { Label("Spreadsheet (CSV)", systemImage: "tablecells") }
+                        ShareLink(item: csvURL) { Text("Spreadsheet (CSV)") }
                     }
                     TextField("Learner's name (printed on the PDF)", text: Bindable(settings).learnerName)
                         .textContentType(.name)
@@ -63,15 +58,15 @@ struct HoursLogView: View {
                             editingIsNew = true
                             editing = PracticeLogEntry(startedAt: Date().addingTimeInterval(-3600), durationS: 1800, nightS: 0,
                                                        supervisor: settings.defaultSupervisor, manual: true)
-                        } label: { Label("Add a drive by hand", systemImage: "square.and.pencil") }
+                        } label: { Text("Add a drive by hand") }
                         Button { importPaperLog = true } label: {
-                            Label("Import from a paper log photo", systemImage: "doc.text.viewfinder")
+                            Text("Import from a paper log photo")
                         }
-                    } label: { Image(systemName: "plus") }
+                    } label: { Text("Add") }
                     .accessibilityLabel("Add hours")
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { showTargets = true } label: { Image(systemName: "target") }
+                    Button { showTargets = true } label: { Text("Goal") }
                         .accessibilityLabel("Change hour requirement")
                 }
             }
@@ -84,8 +79,6 @@ struct HoursLogView: View {
         }
     }
 
-    // MARK: Progress
-
     private var progressCard: some View {
         let h = model.hoursSummary
         return Card {
@@ -95,7 +88,7 @@ struct HoursLogView: View {
             }
             .frame(maxWidth: .infinity)
             if h.complete {
-                Label("Requirement met — ask your parent or guardian to sign your official log.", systemImage: "checkmark.seal.fill")
+                Text("Requirement met — ask your parent or guardian to sign your official log.")
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.efficiency)
             } else {
                 Text(remainingText(h)).font(.subheadline)
@@ -115,9 +108,6 @@ struct HoursLogView: View {
 
     private func row(_ e: PracticeLogEntry) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: e.nightS >= 60 ? "moon.stars.fill" : "sun.max.fill")
-                .foregroundStyle(e.nightS >= 60 ? Color.indigo : Color.orange)
-                .frame(width: 24)
             VStack(alignment: .leading, spacing: 3) {
                 Text(Fmt.dayTime.string(from: e.startedAt)).font(.subheadline.weight(.semibold))
                 Text("Supervisor: \(e.supervisor.isEmpty ? "not set" : e.supervisor)")
@@ -135,8 +125,6 @@ struct HoursLogView: View {
         }
         .contentShape(Rectangle())
     }
-
-    // MARK: Export
 
     private struct ExportKey: Hashable {
         var entries: [PracticeLogEntry]; var learner: String; var total: Double; var night: Double
@@ -158,7 +146,6 @@ struct HoursLogView: View {
     }
 }
 
-/// Ring showing hours done / target.
 struct HoursRing: View {
     var title: String
     var done: Double
@@ -175,7 +162,7 @@ struct HoursRing: View {
                     .stroke(tint, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 VStack(spacing: 0) {
-                    Text(String(format: "%.1f", done)).font(.system(size: size * 0.26, weight: .bold, design: .rounded)).monospacedDigit()
+                    Text(String(format: "%.1f", done)).font(.roadSign(fixed: size * 0.28)).monospacedDigit()
                     Text("of \(Int(target)) h").font(.caption2).foregroundStyle(.secondary)
                 }
             }
@@ -187,7 +174,6 @@ struct HoursRing: View {
     }
 }
 
-/// Add or edit a logged session.
 struct PracticeEntryForm: View {
     @State var entry: PracticeLogEntry
     var isNew: Bool
@@ -197,8 +183,6 @@ struct PracticeEntryForm: View {
     @State private var nightMinutes: Int = 0
     @State private var autoNight = true
 
-    /// Longest single session that can be entered by hand (10 h). An imported paper log can be longer —
-    /// its own length stays reachable when it's edited.
     private static let maxSessionMinutes = 600
     private var maxMinutes: Int { max(Self.maxSessionMinutes, Int((entry.durationS / 60).rounded())) }
 
@@ -259,7 +243,6 @@ struct PracticeEntryForm: View {
         }
     }
 
-    /// Manual entries have no GPS — use central Virginia for the sunset estimate.
     private var estimatedNight: Double {
         Solar.nightSeconds(from: entry.startedAt, to: entry.startedAt.addingTimeInterval(Double(minutes) * 60),
                            lat: 37.54, lon: -77.43)
@@ -274,11 +257,9 @@ struct PracticeEntryForm: View {
     }
 }
 
-/// Change the hours requirement (other states / age groups).
 struct HoursTargetForm: View {
     @Environment(AppSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
-    /// True when presented as a sheet (pushed from Settings it uses the back button instead).
     var showDone = false
 
     var body: some View {

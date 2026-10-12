@@ -1,13 +1,10 @@
-//  DriveStore.swift — Driveby
-//  Index of recorded drives + access to each drive folder's files.
-
 import Foundation
 import Observation
 
 @MainActor
 @Observable
 final class DriveStore {
-    private(set) var records: [DriveRecord] = []      // newest first
+    private(set) var records: [DriveRecord] = []
     private(set) var pendingCloudDeletes: [UUID] = []
     @ObservationIgnored private var analysisCache: [UUID: DriveAnalysis] = [:]
 
@@ -22,7 +19,6 @@ final class DriveStore {
             records = f.records.sorted { $0.startedAt > $1.startedAt }
             pendingCloudDeletes = f.pendingCloudDeletes ?? []
         }
-        // Folders present on disk but missing from the index (e.g. crash before the index was written).
         let known = Set(records.map(\.folder))
         let folders = (try? FileManager.default.contentsOfDirectory(atPath: Storage.drivesRoot.path)) ?? []
         for name in folders where name.hasPrefix("drive_") && !known.contains(name) {
@@ -41,9 +37,6 @@ final class DriveStore {
         try? Storage.writeJSON(IndexFile(records: records, pendingCloudDeletes: pendingCloudDeletes), to: indexURL)
     }
 
-    // MARK: Folders
-
-    /// Next sequential folder name: drive_0001, drive_0002, …
     func nextFolderName() -> String {
         let existing = ((try? FileManager.default.contentsOfDirectory(atPath: Storage.drivesRoot.path)) ?? [])
             .compactMap { Int($0.replacingOccurrences(of: "drive_", with: "")) }
@@ -82,8 +75,6 @@ final class DriveStore {
     }
 
     func record(_ id: UUID) -> DriveRecord? { records.first { $0.id == id } }
-
-    // MARK: Mutations
 
     func add(_ r: DriveRecord) {
         records.removeAll { $0.id == r.id }
@@ -126,8 +117,6 @@ final class DriveStore {
         records = []; analysisCache = [:]; pendingCloudDeletes = []
     }
 
-    // MARK: Derived
-
     var processed: [DriveRecord] { records.filter(\.processed) }
 
     func hardBrakeCounts() -> [UUID: Int] {
@@ -136,7 +125,6 @@ final class DriveStore {
         return out
     }
 
-    /// Deletes full-length videos older than `days` (event clips are kept). Returns bytes freed.
     @discardableResult
     func pruneOldVideos(olderThanDays days: Int) -> Int64 {
         guard days > 0 else { return 0 }

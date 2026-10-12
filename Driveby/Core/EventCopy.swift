@@ -1,12 +1,3 @@
-//  EventCopy.swift — Driveby
-//  "Do not show `hard_brake severity 0.72`." Every event becomes a plain-English
-//  coaching line, tied to a dollar figure from the user's own fuel log where
-//  the physics supports one.
-//
-//    Hard braking — 4:32 into your drive
-//    You slowed from 41 to 12 mph in 2.1 seconds on Route 7. Easing off earlier
-//    here would have saved roughly 0.008 gallons — about 3¢.
-
 import Foundation
 
 struct EventCopy: Equatable, Sendable {
@@ -33,9 +24,6 @@ enum EventCopywriter {
         g < 0.01 ? String(format: "%.3f", g) : String(format: "%.2f", g)
     }
 
-    /// - Parameters:
-    ///   - tripStartT: sensor time when the trip started (for "4:32 into your drive")
-    ///   - pricePerGallon: from the user's latest fuel-log entry (fallback: settings default)
     static func copy(for e: DriveEvent, tripStartT: Double, pricePerGallon: Double) -> EventCopy {
         let when = "\(e.kind.title) — \(timeInto(e.tOffsetS - tripStartT)) into your drive"
         let road = e.detail.road.map { " on \($0)" } ?? ""

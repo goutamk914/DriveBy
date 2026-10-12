@@ -1,9 +1,3 @@
-//  HazardMapView.swift — Driveby
-//  The civic payload — individual input → shared public resource.
-//  "Your data stays yours. But stripped of everything identifying and pooled together, it becomes
-//   a map of the intersections where drivers brake hardest — something a county traffic engineer
-//   could actually act on."
-
 import MapKit
 import SwiftUI
 
@@ -18,7 +12,7 @@ struct HazardMapView: View {
     @State private var exportCSV: URL?
     @State private var showHow = false
     @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 39.03, longitude: -77.52),       // Loudoun County, VA-10
+        center: CLLocationCoordinate2D(latitude: 39.03, longitude: -77.52),
         span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)))
 
     enum Selection: Identifiable {
@@ -44,16 +38,16 @@ struct HazardMapView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { showHow = true } label: { Image(systemName: "questionmark.circle") }
+                    Button { showHow = true } label: { Text("About") }
                         .accessibilityLabel("How the hazard map works")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
                         Toggle("Published cells", isOn: $showPublic)
                         Toggle("My contributions", isOn: $showMine)
-                    } label: { Image(systemName: "square.3.layers.3d") }
+                    } label: { Text("Layers") }
                     exportMenu
-                    Button { Task { await sync.refreshHazardCells() } } label: { Image(systemName: "arrow.clockwise") }
+                    Button { Task { await sync.refreshHazardCells() } } label: { Text("Refresh") }
                         .accessibilityLabel("Refresh")
                 }
             }
@@ -88,8 +82,7 @@ struct HazardMapView: View {
                     .foregroundStyle(Color.blue.opacity(0.18))
                 Annotation(c.cellKey, coordinate: CLLocationCoordinate2D(latitude: c.lat, longitude: c.lon), anchor: .bottom) {
                     Button { selection = .mine(c) } label: {
-                        Image(systemName: "person.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
-                            .frame(width: 18, height: 18).background(Color.blue, in: Circle())
+                        Circle().fill(Color.blue).frame(width: 14, height: 14).overlay(Circle().stroke(.white, lineWidth: 2))
                     }
                     .buttonStyle(.plain)
                 }
@@ -109,8 +102,8 @@ struct HazardMapView: View {
     private func legend(publishedCount: Int, mineCount: Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                Label("\(publishedCount) published", systemImage: "square.fill").foregroundStyle(.red)
-                Label("\(mineCount) yours (private)", systemImage: "square.dashed").foregroundStyle(.blue)
+                Text("\(publishedCount) published").foregroundStyle(.red)
+                Text("\(mineCount) yours (private)").foregroundStyle(.blue)
             }
             .font(.caption.weight(.semibold))
             Text(sync.isConfigured
@@ -127,13 +120,13 @@ struct HazardMapView: View {
     @ViewBuilder private var exportMenu: some View {
         Menu {
             if let g = exportGeoJSON {
-                ShareLink(item: g) { Label("GeoJSON (for VDOT / county GIS)", systemImage: "map") }
+                ShareLink(item: g) { Text("GeoJSON (for VDOT / county GIS)") }
             }
             if let c = exportCSV {
-                ShareLink(item: c) { Label("CSV", systemImage: "tablecells") }
+                ShareLink(item: c) { Text("CSV") }
             }
             if exportGeoJSON == nil { Text("No published cells to export yet") }
-        } label: { Image(systemName: "square.and.arrow.up") }
+        } label: { Text("Export") }
         .accessibilityLabel("Export hazard data")
     }
 
@@ -165,25 +158,24 @@ private struct CellDetail: View {
         VStack(alignment: .leading, spacing: 10) {
             switch selection {
             case .published(let c):
-                Label("Published hazard cell", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red).font(.headline)
+                Text("Published hazard cell").foregroundStyle(.red).font(.headline)
                 Text(c.summary).font(.title3.weight(.semibold))
                 Text("Pooled, anonymised data from everyone who opted in. Cell \(c.cellKey) (≈55 m square).")
                     .font(.footnote).foregroundStyle(.secondary)
             case .mine(let c):
-                Label("Your contribution (private)", systemImage: "person.fill").foregroundStyle(.blue).font(.headline)
+                Text("Your contribution (private)").foregroundStyle(.blue).font(.headline)
                 let hb = c.kindCounts[.hardBrake] ?? 0, hc = c.kindCounts[.harshCorner] ?? 0
                 Text("\(c.eventCount) event\(c.eventCount == 1 ? "" : "s") here across \(c.driveCount) of your drives (\(hb) hard braking, \(hc) sharp turns).")
                     .font(.title3.weight(.semibold))
                 Text("This cell can be published only when at least \(Thresholds.kEvents) events from at least \(Thresholds.kUsers) different drivers land in it. Your data alone can never publish a cell — that's the point.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            // Look at the intersection before you drive it again.
             HStack {
                 Button { openURL(GoogleMaps.mapsURL(lat: coordinate.lat, lon: coordinate.lon)) } label: {
-                    Label("Google Maps", systemImage: "map").frame(maxWidth: .infinity)
+                    Text("Google Maps").frame(maxWidth: .infinity)
                 }
                 Button { openURL(GoogleMaps.streetViewURL(lat: coordinate.lat, lon: coordinate.lon)) } label: {
-                    Label("Street View", systemImage: "binoculars.fill").frame(maxWidth: .infinity)
+                    Text("Street View").frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.bordered)

@@ -1,44 +1,31 @@
-//  Ingest.swift — Driveby
-//  Phase 1 "done when": a drive becomes a clean 10 Hz time series whose
-//  samples can be indexed by sensor time (and therefore by video frame).
-//  Mirrors processor/ingest.py.
-//
-//  Decision 3 (Build Guide): longitudinal acceleration comes from the GPS
-//  Doppler speed (derivative of a Savitzky–Golay-smoothed speed), NOT from the
-//  accelerometer, which reports in the device frame. The gyroscope supplies the
-//  yaw rate (rotation about the gravity axis — orientation-free), and lateral
-//  acceleration is v × yaw_rate.
-
 import Foundation
 
 struct DriveSeries: Sendable {
     var dt: Double = 0.1
-    var t: [Double] = []            // sensor-clock seconds
+    var t: [Double] = []
     var lat: [Double] = []
     var lon: [Double] = []
-    var heading: [Double] = []      // degrees, NaN when unknown
-    var vRaw: [Double] = []         // interpolated GPS speed, m/s
-    var v: [Double] = []            // Savitzky–Golay smoothed speed, m/s (≥ 0)
-    var aLong: [Double] = []        // m/s²
-    var yawRate: [Double] = []      // rad/s
-    var aLat: [Double] = []         // m/s² = v × yaw_rate
-    var distance: [Double] = []     // cumulative metres
-    var gpsGap: [Bool] = []         // true where the nearest valid fix is > 3 s away
-    var leadDist: [Double?] = []    // metres to the lead vehicle (vision), nil when none
-    var imuJerkRMS: Double = .nan   // diagnostic: RMS of d|a|/dt from the raw accelerometer
+    var heading: [Double] = []
+    var vRaw: [Double] = []
+    var v: [Double] = []
+    var aLong: [Double] = []
+    var yawRate: [Double] = []
+    var aLat: [Double] = []
+    var distance: [Double] = []
+    var gpsGap: [Bool] = []
+    var leadDist: [Double?] = []
+    var imuJerkRMS: Double = .nan
 
     var count: Int { t.count }
     var isEmpty: Bool { t.isEmpty }
     var totalDistance: Double { distance.last ?? 0 }
     var duration: Double { count > 1 ? t[count - 1] - t[0] + dt : 0 }
 
-    /// Index of the sample nearest to sensor time `time`.
     func index(at time: Double) -> Int {
         guard let first = t.first else { return 0 }
         return Int(Numerics.clip(((time - first) / dt).rounded(), 0, Double(count - 1)))
     }
 
-    /// Sub-range copy (inclusive bounds), recomputing cumulative distance from zero.
     func slice(_ lo: Int, _ hi: Int) -> DriveSeries {
         guard !isEmpty, lo <= hi, lo >= 0, hi < count else { return DriveSeries(dt: dt) }
         var s = DriveSeries(dt: dt)
@@ -56,10 +43,8 @@ struct DriveSeries: Sendable {
 enum Ingest {
     enum Failure: Error, Equatable { case noUsableGPS(fixes: Int) }
 
-    /// Build the 10 Hz series. Requires at least 3 usable GPS fixes.
     static func resample(_ log: SensorLog, hz: Double = Thresholds.resampleHz) throws -> DriveSeries {
         let dt = 1.0 / hz
-        // Step 2.1 — drop GPS samples with acc > 20 m before resampling.
         let fixes = log.gps.filter { $0.acc <= Thresholds.maxGPSAccuracy && $0.acc >= 0 }
         guard fixes.count >= 3 else { throw Failure.noUsableGPS(fixes: fixes.count) }
 
@@ -68,7 +53,6 @@ enum Ingest {
         let grid = (0..<n).map { t0 + Double($0) * dt }
 
         let ft = fixes.map(\.t)
-        // Speed: fixes lacking a Doppler speed fall back to position differencing.
         var spd = [Double](repeating: 0, count: fixes.count)
         for i in fixes.indices {
             if let s = fixes[i].spd { spd[i] = s; continue }
@@ -84,7 +68,6 @@ enum Ingest {
         s.lon = Numerics.interp(grid, xs: ft, ys: fixes.map(\.lon))
         s.vRaw = Numerics.interp(grid, xs: ft, ys: spd)
 
-        // Heading: nearest-fix course (headings don't interpolate linearly across 0/360).
         var heading = [Double](repeating: .nan, count: n)
         var gap = [Bool](repeating: false, count: n)
         var j = 0
@@ -93,7 +76,6 @@ enum Ingest {
             heading[i] = fixes[j].hdg ?? .nan
             gap[i] = abs(fixes[j].t - q) > 3.0
         }
-        // Fill unknown headings from successive positions when moving.
         for i in 0..<n where heading[i].isNaN {
             let a = max(i - 10, 0), b = min(i + 10, n - 1)
             if b > a, Geo.haversine(s.lat[a], s.lon[a], s.lat[b], s.lon[b]) > 5 {
@@ -103,40 +85,33 @@ enum Ingest {
         s.heading = heading
         s.gpsGap = gap
 
-        // Step 2.1 — smooth first, then differentiate.
         let smooth = Numerics.savgol(s.vRaw, window: Thresholds.savgolWindow, order: Thresholds.savgolOrder)
         s.v = smooth.map { max($0, 0) }
         s.aLong = Numerics.gradient(smooth, dt: dt)
 
-        // Cumulative distance from the smoothed speed (trapezoid).
         var dist = [Double](repeating: 0, count: n)
         for i in 1..<max(n, 1) where i < n { dist[i] = dist[i - 1] + 0.5 * (s.v[i] + s.v[i - 1]) * dt }
         s.distance = dist
 
-        // Yaw rate from the gyro, binned onto the grid.
         s.yawRate = yawSeries(log.imu, grid: grid, dt: dt)
         s.aLat = zip(s.v, s.yawRate).map { $0 * $1 }
         s.imuJerkRMS = imuJerk(log.imu)
 
-        // Lead-vehicle distance: nearest vision sample within 0.3 s.
         s.leadDist = leadSeries(log.lead, grid: grid)
         return s
     }
 
-    /// Orientation-free yaw rate. Uses the logged `yaw` field when present; otherwise
-    /// estimates gravity with a 1 s low-pass of the accelerometer and projects the gyro onto it.
     static func yawSeries(_ imu: [IMUSample], grid: [Double], dt: Double) -> [Double] {
         guard !imu.isEmpty, !grid.isEmpty else { return [Double](repeating: 0, count: grid.count) }
         var yaw = [Double](repeating: 0, count: imu.count)
         var g = (imu[0].ax, imu[0].ay, imu[0].az)
         for (i, s) in imu.enumerated() {
             if let y = s.yaw { yaw[i] = y; continue }
-            let alpha = 0.02 // ≈1 s time constant at 50 Hz
+            let alpha = 0.02
             g = (g.0 + alpha * (s.ax - g.0), g.1 + alpha * (s.ay - g.1), g.2 + alpha * (s.az - g.2))
             let norm = (g.0 * g.0 + g.1 * g.1 + g.2 * g.2).squareRoot()
             yaw[i] = norm > 1e-6 ? (s.gx * g.0 + s.gy * g.1 + s.gz * g.2) / norm : 0
         }
-        // Bin-average into [t - dt/2, t + dt/2), then interpolate empty bins.
         var sums = [Double](repeating: 0, count: grid.count)
         var counts = [Int](repeating: 0, count: grid.count)
         let t0 = grid[0]
@@ -177,14 +152,9 @@ enum Ingest {
     }
 }
 
-// MARK: - Trip segmentation (Step 1.3)
-
 enum TripSegmenter {
     struct Trip: Equatable, Sendable { var startIndex: Int; var endIndex: Int }
 
-    /// Start: speed > 2 m/s sustained 10 s. End: speed < 0.5 m/s sustained 180 s.
-    /// Returns nil if the car never moved. The trip keeps the stationary tail up to the
-    /// moment the 180 s parked-condition began.
     static func segment(_ s: DriveSeries) -> Trip? {
         guard s.count > 0 else { return nil }
         let needStart = Int((Thresholds.tripStartSustain / s.dt).rounded())
@@ -210,7 +180,6 @@ enum TripSegmenter {
     }
 }
 
-/// Streaming version used live by the recorder for auto start / auto stop.
 struct LiveTripDetector: Sendable {
     enum Signal: Equatable, Sendable { case none, started, parked }
     private(set) var moving = false

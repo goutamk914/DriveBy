@@ -1,6 +1,3 @@
-//  Components.swift — Driveby
-//  Reusable views: score ring, score chip, sparkline, camera preview, player, hold-to-stop.
-
 import AVFoundation
 import AVKit
 import Charts
@@ -23,7 +20,7 @@ struct ScoreRing: View {
                     .rotationEffect(.degrees(-90))
                     .animation(.easeOut(duration: 0.8), value: score)
                 VStack(spacing: 0) {
-                    Text(Fmt.score(score)).font(.system(size: size * 0.3, weight: .bold, design: .rounded)).monospacedDigit()
+                    Text(Fmt.score(score)).font(.roadSign(fixed: size * 0.34)).monospacedDigit()
                     Text("/ 100").font(.caption2).foregroundStyle(.secondary)
                 }
             }
@@ -39,28 +36,26 @@ struct ScoreRing: View {
 }
 
 struct ScoreChip: View {
-    var symbol: String
+    var label: String
     var score: Double?
     var tint: Color
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol).font(.caption2.weight(.bold))
-            Text(Fmt.score(score)).font(.subheadline.weight(.bold)).monospacedDigit()
-        }
-        .padding(.horizontal, 9).padding(.vertical, 5)
-        .foregroundStyle(tint)
-        .background(tint.opacity(0.12), in: Capsule())
+        Text(Fmt.score(score)).font(.roadSign(.subheadline)).monospacedDigit()
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .foregroundStyle(tint)
+            .background(tint.opacity(0.12), in: Capsule())
+            .accessibilityLabel("\(label) \(Fmt.score(score))")
     }
 }
 
 struct EfficiencyChip: View {
     var score: Double?
-    var body: some View { ScoreChip(symbol: "leaf.fill", score: score, tint: Theme.efficiency) }
+    var body: some View { ScoreChip(label: "Efficiency", score: score, tint: Theme.efficiency) }
 }
 
 struct SafetyChip: View {
     var score: Double?
-    var body: some View { ScoreChip(symbol: "shield.fill", score: score, tint: Theme.safety) }
+    var body: some View { ScoreChip(label: "Safety", score: score, tint: Theme.safety) }
 }
 
 struct Sparkline: View {
@@ -87,15 +82,13 @@ struct EventBadge: View {
     var kind: EventKind
     var size: CGFloat = 30
     var body: some View {
-        Image(systemName: kind.symbol)
-            .font(.system(size: size * 0.45, weight: .bold))
-            .foregroundStyle(.white)
+        Circle()
+            .fill(kind.color)
+            .frame(width: size * 0.5, height: size * 0.5)
             .frame(width: size, height: size)
-            .background(kind.color, in: Circle())
     }
 }
 
-/// Live camera preview (raw on screen only — never written anywhere).
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
 
@@ -130,7 +123,6 @@ struct CameraPreview: UIViewRepresentable {
     func updateUIView(_ uiView: PreviewView, context: Context) {}
 }
 
-/// AVPlayerLayer host that reports where the video is actually drawn (for overlays).
 struct PlayerSurface: UIViewRepresentable {
     let player: AVPlayer
     @Binding var videoRect: CGRect
@@ -160,10 +152,8 @@ struct PlayerSurface: UIViewRepresentable {
     }
 }
 
-/// Press-and-hold control so a stray tap can't stop (or a driver can't fiddle with) a recording.
 struct HoldButton: View {
     var title: String
-    var systemImage: String
     var tint: Color = .red
     var duration: Double = 1.2
     var action: () -> Void
@@ -178,7 +168,7 @@ struct HoldButton: View {
                 Capsule().fill(tint).frame(width: geo.size.width * progress)
             }
             .clipShape(Capsule())
-            Label(holding ? "Keep holding…" : title, systemImage: systemImage)
+            Text(holding ? "Keep holding…" : title)
                 .font(.headline)
                 .foregroundStyle(.white)
         }
@@ -228,15 +218,13 @@ struct MomentBadge: View {
     var kind: MomentKind
     var size: CGFloat = 30
     var body: some View {
-        Image(systemName: kind.symbol)
-            .font(.system(size: size * 0.45, weight: .bold))
-            .foregroundStyle(.white)
+        Circle()
+            .fill(kind.color)
+            .frame(width: size * 0.5, height: size * 0.5)
             .frame(width: size, height: size)
-            .background(kind.color, in: Circle())
     }
 }
 
-/// "Smooth Braking  67%" bar for the Skills tab.
 struct SkillBar: View {
     var skill: Skill
     var percent: Double?
@@ -245,7 +233,7 @@ struct SkillBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label(skill.title, systemImage: skill.symbol).font(.subheadline.weight(.semibold))
+                Text(skill.title).font(.subheadline.weight(.semibold))
                 Spacer()
                 Text(percent.map { String(format: "%.0f%%", $0) } ?? "—")
                     .font(.headline.monospacedDigit())
@@ -264,13 +252,11 @@ struct SkillBar: View {
     }
 }
 
-/// Persistent reminder that Driveby is a coach, not an instructor or a safety system.
 struct DisclaimerBanner: View {
     var compact = false
     @Environment(AppSettings.self) private var settings
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "person.badge.shield.checkmark.fill").foregroundStyle(.orange).font(.title3)
             VStack(alignment: .leading, spacing: 2) {
                 Text(Disclaimer.short(settings.driverMode)).font(.subheadline.weight(.bold))
                 if !compact {
@@ -287,7 +273,6 @@ struct DisclaimerBanner: View {
     }
 }
 
-/// Big, impossible-to-miss recording indicator.
 struct RecBadge: View {
     var elapsed: TimeInterval
     @State private var pulse = false
@@ -295,8 +280,8 @@ struct RecBadge: View {
         HStack(spacing: 10) {
             Circle().fill(.white).frame(width: 16, height: 16)
                 .opacity(pulse ? 0.35 : 1)
-            Text("REC").font(.system(size: 26, weight: .heavy, design: .rounded))
-            Text(Fmt.clock(elapsed)).font(.system(size: 22, weight: .semibold, design: .rounded).monospacedDigit())
+            Text("REC").font(.roadSign(fixed: 26))
+            Text(Fmt.clock(elapsed)).font(.roadSign(fixed: 22)).monospacedDigit()
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 18).padding(.vertical, 10)

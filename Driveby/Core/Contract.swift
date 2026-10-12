@@ -1,26 +1,4 @@
-//  Contract.swift — Driveby
-//
-//  THE DATA CONTRACT (frozen Week 1 — see docs/DATA_CONTRACT.md).
-//  The phone app writes these exact shapes; the Python processor reads them.
-//
-//  sensors.jsonl — one sample per line, `t` = seconds since recording start
-//  on the MONOTONIC system clock (never wall-clock):
-//    {"t":12.400,"type":"gps","lat":39.045,"lon":-77.487,"spd":18.2,"acc":4.0,"hdg":271.4}
-//    {"t":12.420,"type":"imu","ax":0.11,"ay":-0.03,"az":9.79,"gx":0.001,"gy":0.002,"gz":-0.014,"yaw":-0.013}
-//  Driveby extensions (optional, additive — old readers ignore them):
-//    {"t":13.000,"type":"obd","rpm":1850,"kph":64,"maf":7.21,"fuel_lph":4.10}
-//    {"t":13.033,"type":"lead","bx":0.41,"by":0.48,"bw":0.12,"bh":0.10,"dist":21.4}
-//
-//  drive.json sidecar:
-//    { "drive_id": "...", "video_file": "drive_0007.mov", "sensor_file": "drive_0007.jsonl",
-//      "video_start_t": 0.83, "vehicle_id": "...", "device": "iPhone 13" }
-//
-//  This file is pure Foundation so it compiles both in the iOS app and in the
-//  DrivebyCore Swift package (tests run on macOS or Linux with `swift test`).
-
 import Foundation
-
-// MARK: - Event kinds (matches db/schema.sql `events.kind`)
 
 enum EventKind: String, Codable, CaseIterable, Hashable, Sendable {
     case hardBrake = "hard_brake"
@@ -28,7 +6,7 @@ enum EventKind: String, Codable, CaseIterable, Hashable, Sendable {
     case harshCorner = "harsh_corner"
     case speeding = "speeding"
     case idle = "idle"
-    case laneDrift = "lane_drift"     // reserved in schema; lane detection is CUT for 2026 (2.0 roadmap)
+    case laneDrift = "lane_drift"
     case tailgating = "tailgating"
 
     var title: String {
@@ -43,46 +21,40 @@ enum EventKind: String, Codable, CaseIterable, Hashable, Sendable {
         }
     }
 
-    /// Which score the event feeds.
     var affectsSafety: Bool { [.hardBrake, .harshCorner, .speeding, .tailgating].contains(self) }
     var affectsEfficiency: Bool { [.hardBrake, .hardAccel, .idle, .speeding].contains(self) }
 
-    /// Kinds pooled into the public hazard map ("hard-brake / swerve events").
     static let hazardKinds: Set<EventKind> = [.hardBrake, .harshCorner]
 }
 
-// MARK: - Raw sensor samples
-
 struct GPSSample: Equatable, Sendable {
-    var t: Double          // s, monotonic since recording start
+    var t: Double
     var lat: Double
     var lon: Double
-    var spd: Double?       // m/s (Doppler); nil when invalid
-    var acc: Double        // horizontal accuracy, metres
-    var hdg: Double?       // course over ground, degrees true; nil when invalid
+    var spd: Double?
+    var acc: Double
+    var hdg: Double?
 }
 
 struct IMUSample: Equatable, Sendable {
     var t: Double
-    var ax: Double, ay: Double, az: Double   // m/s², device frame, INCLUDING gravity
-    var gx: Double, gy: Double, gz: Double   // rad/s, device frame
-    var yaw: Double?                         // rad/s about the gravity axis (orientation-free yaw rate)
+    var ax: Double, ay: Double, az: Double
+    var gx: Double, gy: Double, gz: Double
+    var yaw: Double?
 }
 
 struct OBDSample: Equatable, Sendable {
     var t: Double
     var rpm: Double?
     var kph: Double?
-    var maf: Double?       // g/s
-    var fuelLph: Double?   // L/h (PID 015E)
+    var maf: Double?
+    var fuelLph: Double?
 }
 
-/// Lead vehicle detected in our lane by the on-device vision pass.
-/// Box is normalised to the video frame, origin TOP-LEFT.
 struct LeadSample: Equatable, Sendable {
     var t: Double
     var bx: Double, by: Double, bw: Double, bh: Double
-    var dist: Double       // metres (pinhole model: real_width * focal_px / box_width_px)
+    var dist: Double
 }
 
 struct SensorLog: Sendable {
@@ -97,8 +69,6 @@ struct SensorLog: Sendable {
         max(gps.last?.t ?? 0, imu.last?.t ?? 0, obd.last?.t ?? 0, lead.last?.t ?? 0)
     }
 }
-
-// MARK: - JSONL line formatting (writer side)
 
 enum SampleLine {
     @inline(__always) private static func f(_ v: Double, _ digits: Int) -> String {
@@ -135,11 +105,7 @@ enum SampleLine {
     }
 }
 
-// MARK: - JSONL parsing (reader side)
-
 enum SensorLogParser {
-    /// Parses a sensors.jsonl blob. Malformed lines (e.g. a half-written final
-    /// line after a crash or dead battery) are counted and skipped, never fatal.
     static func parse(_ data: Data) -> SensorLog {
         var log = SensorLog()
         guard !data.isEmpty else { return log }
@@ -153,15 +119,12 @@ enum SensorLogParser {
                 if let obj = (try? JSONSerialization.jsonObject(with: slice, options: [])) as? [String: Any] {
                     if !ingest(obj, into: &log) { log.malformedLines += 1 }
                 } else {
-                    // tolerate trailing \r or whitespace-only lines
                     let trimmed = String(decoding: slice, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty { log.malformedLines += 1 }
                 }
             }
             start = lineEnd < end ? data.index(after: lineEnd) : end
         }
-        // Samples are written in arrival order; GPS fixes can arrive slightly
-        // out of order relative to IMU, so sort each stream by t.
         log.gps.sort { $0.t < $1.t }
         log.imu.sort { $0.t < $1.t }
         log.obd.sort { $0.t < $1.t }
@@ -198,31 +161,29 @@ enum SensorLogParser {
                   let bh = num(o["bh"]), let dist = num(o["dist"]) else { return false }
             log.lead.append(LeadSample(t: t, bx: bx, by: by, bw: bw, bh: bh, dist: dist))
         default:
-            return true // unknown future sample types are ignored, not errors
+            return true
         }
         return true
     }
 }
 
-// MARK: - Sidecar
-
 struct DriveSidecar: Codable, Equatable, Sendable {
     var driveId: String
-    var videoFile: String?          // nil for sensors-only drives
+    var videoFile: String?
     var sensorFile: String
-    var videoStartT: Double?        // sensor-clock time of the first video frame
-    var videoEndT: Double?          // sensor-clock time of the last written frame
-    var videoInterrupted: Bool?     // camera stopped early (phone locked / app backgrounded)
+    var videoStartT: Double?
+    var videoEndT: Double?
+    var videoInterrupted: Bool?
     var vehicleId: String?
     var device: String
-    var startedAt: Date             // wall clock at t = 0 (display only — never used for sync)
+    var startedAt: Date
     var endedAt: Date?
-    var focalPx: Double?            // camera focal length in pixels at video resolution
+    var focalPx: Double?
     var videoWidth: Int?
     var videoHeight: Int?
     var appVersion: String?
-    var recordingMode: String?      // "camera" | "sensors"
-    var supervisor: String? = nil   // licensed adult in the passenger seat (for the permit-hours log)
+    var recordingMode: String?
+    var supervisor: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case driveId = "drive_id"
@@ -257,56 +218,47 @@ struct DriveSidecar: Codable, Equatable, Sendable {
     }()
 }
 
-// MARK: - Thresholds (single source of truth; mirrored in processor/contract.py)
-
 enum Thresholds {
-    // Step 1.3 — trip segmentation
-    static let tripStartSpeed = 2.0          // m/s
-    static let tripStartSustain = 10.0       // s
-    static let tripEndSpeed = 0.5            // m/s
-    static let tripEndSustain = 180.0        // s
-    static let minTripDistance = 500.0       // m
-    static let minTripDuration = 120.0       // s
+    static let tripStartSpeed = 2.0
+    static let tripStartSustain = 10.0
+    static let tripEndSpeed = 0.5
+    static let tripEndSustain = 180.0
+    static let minTripDistance = 500.0
+    static let minTripDuration = 120.0
 
-    // Step 2.1 — ingest
-    static let maxGPSAccuracy = 20.0         // m — drop worse fixes before resampling
+    static let maxGPSAccuracy = 20.0
     static let resampleHz = 10.0
-    static let savgolWindow = 21             // samples ≈ 2.1 s at 10 Hz
+    static let savgolWindow = 21
     static let savgolOrder = 3
 
-    // Step 2.2 — events
     static let hardBrakeA = -3.0, hardBrakeFull = -6.0
     static let hardAccelA = 2.5, hardAccelFull = 5.0
     static let harshCornerA = 3.0, harshCornerFull = 6.0
-    static let accelSustain = 0.5            // s
-    static let speedingMargin = 4.5          // m/s over the limit (~10 mph)
-    static let speedingSustain = 5.0         // s
-    static let speedingFullExcess = 13.4     // m/s over (~30 mph) → severity excess term 1
-    static let idleSpeed = 0.5               // m/s
-    static let idleMin = 60.0                // s
-    static let idleFull = 300.0              // s → severity 1
-    static let debounceMerge = 2.0           // s — merge same-kind events this close
-    static let debounceMinGap = 5.0          // s — minimum gap between same-kind event starts
+    static let accelSustain = 0.5
+    static let speedingMargin = 4.5
+    static let speedingSustain = 5.0
+    static let speedingFullExcess = 13.4
+    static let idleSpeed = 0.5
+    static let idleMin = 60.0
+    static let idleFull = 300.0
+    static let debounceMerge = 2.0
+    static let debounceMinGap = 5.0
 
-    // Step 5.2 — following distance
-    static let tailgateHeadway = 1.0         // s
-    static let closeHeadway = 2.0            // s
-    static let tailgateSustain = 3.0         // s
-    static let tailgateMinSpeed = 5.0        // m/s — headway is meaningless in crawling traffic
-    static let tailgateFullHeadway = 0.4     // s → severity 1
-    static let vehicleRealWidth = 1.8        // m
+    static let tailgateHeadway = 1.0
+    static let closeHeadway = 2.0
+    static let tailgateSustain = 3.0
+    static let tailgateMinSpeed = 5.0
+    static let tailgateFullHeadway = 0.4
+    static let vehicleRealWidth = 1.8
 
-    // Step 3 — efficiency
-    static let brakingIntervalA = -0.5       // m/s² — drag + engine braking below this isn't waste
-    static let highSpeed = 29.0              // m/s ≈ 65 mph
-    static let accelWasteA = 1.5             // m/s²
+    static let brakingIntervalA = -0.5
+    static let highSpeed = 29.0
+    static let accelWasteA = 1.5
 
-    // Step 2.3 — speed-limit matching
-    static let wayMatchRadius = 25.0         // m
-    static let wayHeadingTolerance = 45.0    // degrees
+    static let wayMatchRadius = 25.0
+    static let wayHeadingTolerance = 45.0
 
-    // Step 7.1 — hazard map k-anonymity
-    static let hazardCell = 0.0005           // degrees ≈ 55 m at this latitude
+    static let hazardCell = 0.0005
     static let kEvents = 5
     static let kUsers = 3
 }

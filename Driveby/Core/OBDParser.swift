@@ -1,14 +1,3 @@
-//  OBDParser.swift — Driveby
-//  ELM327 (BLE) response parsing for Decision 4: real fuel data per trip.
-//  Pure logic, unit tested; the CoreBluetooth transport is Services/OBDManager.swift.
-//
-//  PIDs used (SAE J1979 mode 01):
-//    0C  engine RPM            ((A·256)+B)/4
-//    0D  vehicle speed (km/h)  A
-//    10  MAF air flow (g/s)    ((A·256)+B)/100
-//    5E  engine fuel rate L/h  ((A·256)+B)/20
-//    00/20/40  supported-PID bitmasks
-
 import Foundation
 
 enum OBDPID: String, CaseIterable, Sendable {
@@ -26,10 +15,8 @@ enum OBDPID: String, CaseIterable, Sendable {
 }
 
 enum OBDParser {
-    /// ELM327 init sequence: reset, echo off, linefeeds off, spaces off, headers off, auto protocol.
     static let initCommands = ["ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"]
 
-    /// Strip prompt, echoes, "SEARCHING...", whitespace; return hex payload lines.
     static func cleanLines(_ raw: String) -> [String] {
         raw.replacingOccurrences(of: ">", with: "")
             .components(separatedBy: CharacterSet(charactersIn: "\r\n"))
@@ -43,7 +30,6 @@ enum OBDParser {
             || u.contains("ERROR") || u.contains("?") || u.contains("STOPPED")
     }
 
-    /// Data bytes following "41 <pid>" in a mode-01 response.
     static func dataBytes(_ raw: String, pid: String) -> [UInt8]? {
         let header = "41" + pid.uppercased()
         for line in cleanLines(raw) {
@@ -72,7 +58,6 @@ enum OBDParser {
         }
     }
 
-    /// Parse a supported-PIDs response (0100 / 0120 / 0140) into the set of supported PID hex codes.
     static func supportedPIDs(_ raw: String, base: Int) -> Set<String> {
         let pid = String(format: "%02X", base)
         guard let b = dataBytes(raw, pid: pid), b.count >= 4 else { return [] }

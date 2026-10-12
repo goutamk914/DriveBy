@@ -1,8 +1,3 @@
-//  PracticeLogStore.swift — Driveby
-//  Supervised driving hours for the learner's permit (Virginia: 45 hours, 15 after sunset, for drivers
-//  under 18). Every recorded drive is logged automatically with its night minutes; drives done without
-//  the app can be added by hand. Persisted to Documents/practice_log.json.
-
 import Foundation
 import Observation
 
@@ -11,10 +6,9 @@ import Observation
 final class PracticeLogStore {
     private struct File: Codable { var entries: [PracticeLogEntry]; var dirty: [UUID]?; var deleted: [UUID]?; var removedDrives: [UUID]? }
 
-    private(set) var entries: [PracticeLogEntry] = []      // newest first
+    private(set) var entries: [PracticeLogEntry] = []
     private(set) var dirty: Set<UUID> = []
     private(set) var pendingDeletes: [UUID] = []
-    /// Recorded drives whose session the user deleted — never auto-logged again (e.g. after re-scoring).
     private(set) var removedDrives: Set<UUID> = []
 
     private var url: URL { Storage.documents.appendingPathComponent("practice_log.json") }

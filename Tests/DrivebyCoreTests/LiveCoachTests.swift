@@ -1,17 +1,12 @@
-//  LiveCoachTests.swift — the real-time voice coach: thresholds, rate limiting, mode differences,
-//  and the single-point speed-limit lookup it relies on.
-
 import XCTest
 @testable import DrivebyCore
 
 final class LiveCoachTests: XCTestCase {
 
-    // MARK: Braking / acceleration (GPS speed, 1 Hz)
-
     func testHardBrakeIsCalledOut() {
         var coach = LiveCoach(mode: .regular)
         XCTAssertNil(coach.speed(t: 0, v: 20, limitMps: nil))
-        let cue = coach.speed(t: 1, v: 16, limitMps: nil)          // −4 m/s² < −3.0
+        let cue = coach.speed(t: 1, v: 16, limitMps: nil)
         XCTAssertEqual(cue?.cue, .hardBrake)
     }
 
@@ -27,7 +22,7 @@ final class LiveCoachTests: XCTestCase {
     func testHardAccelerationIsCalledOut() {
         var coach = LiveCoach(mode: .regular)
         _ = coach.speed(t: 0, v: 2, limitMps: nil)
-        XCTAssertEqual(coach.speed(t: 1, v: 5, limitMps: nil)?.cue, .hardAccel)   // +3 m/s² > 2.5
+        XCTAssertEqual(coach.speed(t: 1, v: 5, limitMps: nil)?.cue, .hardAccel)
     }
 
     func testStaleGPSGapIsNotTreatedAsAcceleration() {
@@ -35,8 +30,6 @@ final class LiveCoachTests: XCTestCase {
         _ = coach.speed(t: 0, v: 20, limitMps: nil)
         XCTAssertNil(coach.speed(t: 10, v: 0, limitMps: nil), "a 10 s gap (tunnel) must not look like a hard brake")
     }
-
-    // MARK: Rate limiting
 
     func testSameCueDoesNotRepeatWithinRepeatGap() {
         var coach = LiveCoach(mode: .regular)
@@ -52,12 +45,9 @@ final class LiveCoachTests: XCTestCase {
         var coach = LiveCoach(mode: .regular)
         _ = coach.speed(t: 0, v: 20, limitMps: nil)
         XCTAssertNotNil(coach.speed(t: 1, v: 16, limitMps: nil))
-        // A sharp turn right after: suppressed by the global gap.
         XCTAssertNil(coach.yaw(t: 2, yawRate: 0.5, v: 10))
         XCTAssertNil(coach.yaw(t: 2.6, yawRate: 0.5, v: 10))
     }
-
-    // MARK: Speeding
 
     func testSpeedingNeedsToBeSustained() {
         var coach = LiveCoach(mode: .regular)
@@ -74,7 +64,6 @@ final class LiveCoachTests: XCTestCase {
         var coach = LiveCoach(mode: .regular)
         let limit = 25 / Units.mpsToMph
         let over = limit + Thresholds.speedingMargin + 1
-        // Fixes 4 s apart (beyond maxFixGap) so the speed changes aren't read as acceleration.
         _ = coach.speed(t: 0, v: over, limitMps: limit)
         _ = coach.speed(t: 4, v: limit, limitMps: limit)
         XCTAssertNil(coach.speed(t: 8, v: over, limitMps: limit))
@@ -84,31 +73,27 @@ final class LiveCoachTests: XCTestCase {
 
     func testLimitIsRoundedToAPostedValue() {
         var coach = LiveCoach(mode: .regular)
-        let limit = 56 / 3.6     // OSM "56" (km/h) ≈ 34.8 mph → posted 35
+        let limit = 56 / 3.6
         let over = limit + Thresholds.speedingMargin + 1
         _ = coach.speed(t: 0, v: over, limitMps: limit)
         XCTAssertEqual(coach.speed(t: 5, v: over, limitMps: limit)?.limitMph, 35)
     }
 
-    // MARK: Cornering (yaw × speed)
-
     func testSharpTurnNeedsHalfASecond() {
         var coach = LiveCoach(mode: .regular)
-        XCTAssertNil(coach.yaw(t: 0, yawRate: 0.4, v: 10))          // 4 m/s² lateral
+        XCTAssertNil(coach.yaw(t: 0, yawRate: 0.4, v: 10))
         XCTAssertNil(coach.yaw(t: 0.3, yawRate: 0.4, v: 10))
         XCTAssertEqual(coach.yaw(t: 0.5, yawRate: -0.4, v: 10)?.cue, .sharpTurn)
     }
 
     func testSlowTightTurnIsFine() {
         var coach = LiveCoach(mode: .regular)
-        for i in 0..<10 { XCTAssertNil(coach.yaw(t: Double(i) * 0.1, yawRate: 0.5, v: 4)) }   // 2 m/s²
+        for i in 0..<10 { XCTAssertNil(coach.yaw(t: Double(i) * 0.1, yawRate: 0.5, v: 4)) }
     }
-
-    // MARK: Following distance (camera)
 
     func testTailgatingNeedsThreeSeconds() {
         var coach = LiveCoach(mode: .regular)
-        XCTAssertNil(coach.headway(t: 0, leadDistance: 10, v: 20))   // 0.5 s headway
+        XCTAssertNil(coach.headway(t: 0, leadDistance: 10, v: 20))
         XCTAssertNil(coach.headway(t: 2, leadDistance: 10, v: 20))
         XCTAssertEqual(coach.headway(t: 3, leadDistance: 10, v: 20)?.cue, .tailgating)
     }
@@ -124,8 +109,6 @@ final class LiveCoachTests: XCTestCase {
         var coach = LiveCoach(mode: .regular)
         for i in 0...5 { XCTAssertNil(coach.headway(t: Double(i), leadDistance: 2, v: 3)) }
     }
-
-    // MARK: Positive feedback — new drivers only
 
     private func smoothStop(_ coach: inout LiveCoach, from t0: Double = 0) -> [LiveCueEvent] {
         var out: [LiveCueEvent] = []
@@ -152,7 +135,6 @@ final class LiveCoachTests: XCTestCase {
     }
 
     func testHardFinalStepIsNotPraised() {
-        // Gentle until the last second, then −2.5 m/s² (harder than "smooth") into the stop.
         var coach = LiveCoach(mode: .newDriver)
         let cues = [10.0, 8.5, 7.0, 5.5, 4.0, 2.9, 0.4].enumerated().compactMap { i, v in coach.speed(t: Double(i), v: v, limitMps: nil) }
         XCTAssertTrue(cues.isEmpty)
@@ -161,12 +143,10 @@ final class LiveCoachTests: XCTestCase {
     func testOldHardBrakeDoesNotSpoilALaterSmoothStop() {
         var coach = LiveCoach(mode: .newDriver)
         _ = coach.speed(t: 0, v: 16, limitMps: nil)
-        _ = coach.speed(t: 1, v: 12, limitMps: nil)                  // hard brake, then cruise at 12 m/s
+        _ = coach.speed(t: 1, v: 12, limitMps: nil)
         for t in 2...61 { _ = coach.speed(t: Double(t), v: 12, limitMps: nil) }
         XCTAssertEqual(smoothStop(&coach, from: 62).map(\.cue), [.smoothStop])
     }
-
-    // MARK: Estimated (untagged) limits
 
     func testEstimatedLimitIsNotAnnouncedAsPosted() {
         var coach = LiveCoach(mode: .regular)
@@ -179,18 +159,13 @@ final class LiveCoachTests: XCTestCase {
         XCTAssertEqual(LiveCue.speeding.phrase(mode: .regular, limitMph: cue?.limitMph), "Watch your speed.")
     }
 
-    // MARK: Camera interruptions
-
     func testCameraGapResetsTailgating() {
         var coach = LiveCoach(mode: .regular)
         _ = coach.headway(t: 0, leadDistance: 10, v: 20)
-        // Camera interrupted for 10 s, then a close car again: the 3 s must start over.
         XCTAssertNil(coach.headway(t: 10, leadDistance: 10, v: 20))
         XCTAssertNil(coach.headway(t: 12, leadDistance: 10, v: 20))
         XCTAssertEqual(coach.headway(t: 13, leadDistance: 10, v: 20)?.cue, .tailgating)
     }
-
-    // MARK: Phrases
 
     func testPhrasesDifferByMode() {
         XCTAssertNotEqual(LiveCue.hardBrake.phrase(mode: .regular, limitMph: nil),
@@ -201,8 +176,6 @@ final class LiveCoachTests: XCTestCase {
             XCTAssertFalse(cue.shortText(limitMph: 30).isEmpty)
         }
     }
-
-    // MARK: Single-point speed-limit lookup (live)
 
     private func northSouthRoad() -> OSMWay {
         OSMWay(id: 7, highway: "residential", maxspeed: "25 mph", name: "Oak Ave", ref: nil, oneway: nil,
@@ -226,6 +199,6 @@ final class LiveCoachTests: XCTestCase {
 
     func testRoadIndexIgnoresFarRoads() {
         let index = SpeedLimits.RoadIndex(ways: [northSouthRoad()], lat0: 38.905, lon0: -77.3)
-        XCTAssertNil(index.match(lat: 38.905, lon: -77.301, heading: 0, speed: 10).wayId)   // ≈ 87 m away
+        XCTAssertNil(index.match(lat: 38.905, lon: -77.301, heading: 0, speed: 10).wayId)
     }
 }

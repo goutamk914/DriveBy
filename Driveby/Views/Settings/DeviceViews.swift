@@ -1,15 +1,11 @@
-//  DeviceViews.swift — Driveby
-//  Mount check (Day 3: same geometry every drive or distance estimation breaks),
-//  camera calibration, and the OBD-II adapter screen.
-
 import CoreMotion
 import SwiftUI
 
 @MainActor
 @Observable
 final class LevelMeter {
-    private(set) var roll: Double = 0      // degrees, 0 = horizon level in landscape
-    private(set) var pitch: Double = 0     // degrees, 0 = lens pointing at the horizon
+    private(set) var roll: Double = 0
+    private(set) var pitch: Double = 0
     private(set) var landscape = false
     @ObservationIgnored private let mm = CMMotionManager()
 
@@ -71,10 +67,10 @@ struct MountCheckView: View {
                 gauge("Orientation", level.landscape ? "Landscape" : "Portrait", ok: level.landscape)
             }
             List {
-                Label("Landscape, lens centred behind the mirror, above the dash line.", systemImage: "iphone.landscape")
-                Label("The dashed lines should cross on the road ahead; the yellow band is \"our lane\" for following distance.", systemImage: "scope")
-                Label("Level the horizon, then mark the mount position with tape — every drive must use the same geometry.", systemImage: "ruler")
-                Label("Clean the windshield. Glare and grime hurt detection and blur.", systemImage: "sparkles")
+                Text("Landscape, lens centred behind the mirror, above the dash line.")
+                Text("The dashed lines should cross on the road ahead; the yellow band is \"our lane\" for following distance.")
+                Text("Level the horizon, then mark the mount position with tape — every drive must use the same geometry.")
+                Text("Clean the windshield. Glare and grime hurt detection and blur.")
             }
             .listStyle(.plain)
             .font(.footnote)
@@ -160,8 +156,8 @@ struct OBDView: View {
                             Text(r.pid.label)
                             Spacer()
                             if let v = r.lastValue { Text(String(format: "%.1f", v)).monospacedDigit().foregroundStyle(.secondary) }
-                            Image(systemName: r.supported == true ? "checkmark.circle.fill" : r.supported == false ? "xmark.circle" : "questionmark.circle")
-                                .foregroundStyle(r.supported == true ? Color.green : Color.secondary)
+                            Text(r.supported == true ? "Supported" : r.supported == false ? "Not supported" : "Unknown")
+                                .font(.caption).foregroundStyle(r.supported == true ? Color.green : Color.secondary)
                         }
                     }
                     Text("Fuel per trip uses 015E (fuel rate) when supported, otherwise MAF (0110): fuel g/s = MAF ÷ 14.7, gallons = g ÷ 2830.")

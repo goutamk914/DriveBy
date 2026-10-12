@@ -1,11 +1,8 @@
-//  Theme.swift — Driveby
-//  Colours, event styling and formatting helpers shared by every screen.
-
 import SwiftUI
 
 enum Theme {
-    static let efficiency = Color(red: 0.09, green: 0.64, blue: 0.29)    // leaf green
-    static let safety = Color(red: 0.15, green: 0.39, blue: 0.92)        // road-sign blue
+    static let efficiency = Color(red: 0.09, green: 0.64, blue: 0.29)
+    static let safety = Color(red: 0.15, green: 0.39, blue: 0.92)
     static let card = Color(.secondarySystemGroupedBackground)
     static let background = Color(.systemGroupedBackground)
 
@@ -29,18 +26,6 @@ extension EventKind {
         case .idle: return Color(red: 0.45, green: 0.50, blue: 0.56)
         case .tailgating: return Color(red: 0.86, green: 0.16, blue: 0.47)
         case .laneDrift: return Color(red: 0.05, green: 0.58, blue: 0.53)
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .hardBrake: return "exclamationmark.octagon.fill"
-        case .hardAccel: return "hare.fill"
-        case .harshCorner: return "arrow.turn.up.right"
-        case .speeding: return "gauge.with.dots.needle.67percent"
-        case .idle: return "hourglass"
-        case .tailgating: return "car.2.fill"
-        case .laneDrift: return "road.lanes"
         }
     }
 }
@@ -80,7 +65,6 @@ enum Fmt {
     }()
 }
 
-/// Rounded card container.
 struct Card<Content: View>: View {
     var padding: CGFloat = 16
     @ViewBuilder var content: Content
@@ -92,12 +76,53 @@ struct Card<Content: View>: View {
     }
 }
 
+enum Typography {
+    static let roadSignFace = "DINAlternate-Bold"
+    private static let largeTitleSize: CGFloat = 34
+    private static let inlineTitleSize: CGFloat = 17
+
+    static func pointSize(_ style: Font.TextStyle) -> CGFloat {
+        switch style {
+        case .largeTitle: return 34
+        case .title: return 28
+        case .title2: return 22
+        case .title3: return 20
+        case .headline, .body: return 17
+        case .callout: return 16
+        case .subheadline: return 15
+        case .footnote: return 13
+        case .caption: return 12
+        case .caption2: return 11
+        @unknown default: return 17
+        }
+    }
+
+    @MainActor
+    static func styleNavigationBars() {
+        guard let large = UIFont(name: roadSignFace, size: largeTitleSize),
+              let inline = UIFont(name: roadSignFace, size: inlineTitleSize) else { return }
+        let bar = UINavigationBar.appearance()
+        bar.largeTitleTextAttributes = [.font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: large)]
+        bar.titleTextAttributes = [.font: UIFontMetrics(forTextStyle: .headline).scaledFont(for: inline)]
+    }
+}
+
+extension Font {
+    static func roadSign(_ style: Font.TextStyle) -> Font {
+        .custom(Typography.roadSignFace, size: Typography.pointSize(style), relativeTo: style)
+    }
+
+    static func roadSign(fixed size: CGFloat) -> Font {
+        .custom(Typography.roadSignFace, fixedSize: size)
+    }
+}
+
 struct SectionHeader: View {
     var title: String
     var subtitle: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.headline)
+            Text(title).font(.roadSign(.headline))
             if let subtitle { Text(subtitle).font(.footnote).foregroundStyle(.secondary) }
         }
     }
@@ -110,16 +135,6 @@ extension MomentKind {
         case .rollingStop: return Color(red: 0.92, green: 0.45, blue: 0.05)
         case .missedStop: return Color(red: 0.86, green: 0.15, blue: 0.15)
         default: return EventKind(rawValue: rawValue)?.color ?? .gray
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .goodStop: return "checkmark.octagon.fill"
-        case .smoothStop: return "checkmark.circle.fill"
-        case .smoothTurn: return "arrow.turn.up.right"
-        case .rollingStop, .missedStop: return "octagon.fill"
-        default: return EventKind(rawValue: rawValue)?.symbol ?? "circle.fill"
         }
     }
 }
@@ -138,7 +153,6 @@ extension Skill {
 }
 
 extension AppAppearance {
-    /// nil follows the phone's setting.
     var colorScheme: ColorScheme? {
         switch self {
         case .system: return nil
@@ -146,28 +160,9 @@ extension AppAppearance {
         case .dark: return .dark
         }
     }
-
-    var symbol: String {
-        switch self {
-        case .system: return "circle.lefthalf.filled"
-        case .light: return "sun.max.fill"
-        case .dark: return "moon.fill"
-        }
-    }
 }
 
 extension LiveCue {
-    var symbol: String {
-        switch self {
-        case .hardBrake: return EventKind.hardBrake.symbol
-        case .hardAccel: return EventKind.hardAccel.symbol
-        case .sharpTurn: return EventKind.harshCorner.symbol
-        case .speeding: return EventKind.speeding.symbol
-        case .tailgating: return EventKind.tailgating.symbol
-        case .smoothStop: return "hand.thumbsup.fill"
-        }
-    }
-
     var color: Color {
         switch self {
         case .hardBrake: return EventKind.hardBrake.color
@@ -180,7 +175,6 @@ extension LiveCue {
     }
 }
 
-/// The one sentence this app must never let anyone miss — worded for the driver's mode.
 enum Disclaimer {
     static func short(_ mode: DriverMode) -> String {
         mode == .newDriver ? "Practice tool only — not a driving instructor." : "A coach, not a safety system."

@@ -1,11 +1,7 @@
-//  PaperLogTests.swift — reading hours off a photo of a paper driving log.
-
 import XCTest
 @testable import DrivebyCore
 
 final class PaperLogTests: XCTestCase {
-
-    // MARK: Written totals win
 
     func testWrittenTotalIsUsed() {
         let e = PaperLog.estimate(lines: [
@@ -39,8 +35,6 @@ final class PaperLogTests: XCTestCase {
         XCTAssertEqual(e.totalMinutes, 60, accuracy: 0.1)
     }
 
-    // MARK: Adding up sessions
-
     func testSessionsWithUnitsAreSummed() {
         let e = PaperLog.estimate(lines: ["10/1  1 hr 15 min", "10/3  45 minutes", "10/4  2h"])
         XCTAssertFalse(e.fromWrittenTotal)
@@ -54,7 +48,6 @@ final class PaperLogTests: XCTestCase {
     }
 
     func testRangeIsNotMistakenForADate() {
-        // "15-5" inside "4:15-5:30" must not be read as a date and swallowed.
         XCTAssertEqual(PaperLog.durationMinutes(in: "4:15-5:30"), 75)
     }
 
@@ -80,7 +73,6 @@ final class PaperLogTests: XCTestCase {
     }
 
     func testStartTimeAndDurationColumnsPickTheDuration() {
-        // "3:45" (start time, no am/pm) and "1:30" (duration) on one row → the smaller is the duration.
         XCTAssertEqual(PaperLog.durationMinutes(in: "10/1  3:45  1:30  JK"), 90)
     }
 
@@ -94,8 +86,6 @@ final class PaperLogTests: XCTestCase {
         let e = PaperLog.estimate(lines: ["Total 5 hrs", "Night total 8 hrs"])
         XCTAssertLessThanOrEqual(e.nightMinutes, e.totalMinutes)
     }
-
-    // MARK: Review fixes — totals, targets, start times
 
     func testTotalAndNightTotalOnOneLine() {
         let e = PaperLog.estimate(lines: ["Total hours: 45  Night hours: 15"])
@@ -130,10 +120,7 @@ final class PaperLogTests: XCTestCase {
         XCTAssertEqual(PaperLog.durationMinutes(in: "10/1  4.15-5.30 pm"), 75)
     }
 
-    // MARK: OCR rows
-
     func testFragmentsAreGroupedIntoRows() {
-        // y grows downward; two table rows, cells recognised out of order.
         let rows = PaperLog.rows([
             OCRFragment(text: "1:30", minX: 0.4, midY: 0.205, height: 0.02),
             OCRFragment(text: "10/1", minX: 0.1, midY: 0.200, height: 0.02),

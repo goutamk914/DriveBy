@@ -1,23 +1,5 @@
-//  Coaching.swift — Driveby
-//  The learner-facing layer on top of events and scores:
-//    • Driver skills ("Smooth braking 67%, Turns 76%")
-//    • Stop-sign approaches (OpenStreetMap stop nodes)
-//    • Post-drive moments — the good AND the bad, on one timeline
-//    • "What to practice next"
-//    • Day/night split for the supervised-hours log (sunset from the NOAA solar algorithm)
-//
-//  How Driveby "watches" a drive, in one breath: the phone's GPS gives speed, the motion sensors
-//  give braking and turning, the map gives speed limits and stop signs. The camera is only there
-//  so you can replay a moment (and to measure distance to the car ahead).
-//  Pure Foundation — unit-tested on Linux (Tests/DrivebyCoreTests/CoachingTests.swift).
-
 import Foundation
 
-// MARK: - Driving mode
-
-/// Regular drivers get a lean coach by default; new drivers opt in to the learner's-permit extras
-/// (supervised-hours log, pre-drive checklist, step-by-step coaching).
-/// Raw values are the original "advanced"/"beginner" so settings saved by earlier builds still load.
 enum DriverMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case regular = "advanced"
     case newDriver = "beginner"
@@ -31,8 +13,6 @@ enum DriverMode: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 }
-
-// MARK: - Skills
 
 enum Skill: String, Codable, CaseIterable, Identifiable, Sendable {
     case smoothBraking = "smooth_braking"
@@ -55,18 +35,6 @@ enum Skill: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var symbol: String {
-        switch self {
-        case .smoothBraking: return "pause.circle.fill"
-        case .smoothAcceleration: return "arrow.up.forward.circle.fill"
-        case .turns: return "arrow.triangle.turn.up.right.circle.fill"
-        case .speedControl: return "speedometer"
-        case .followingDistance: return "car.2.fill"
-        case .stopSigns: return "octagon.fill"
-        }
-    }
-
-    /// What the percentage means, in plain words.
     var definition: String {
         switch self {
         case .smoothBraking: return "Share of your slow-downs that were gentle (under 0.22 g)."
@@ -88,7 +56,6 @@ enum Skill: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Minimum evidence before a percentage is shown (episodes, or seconds for time-based skills).
     var minimumTotal: Double {
         switch self {
         case .speedControl, .followingDistance: return 60
@@ -106,11 +73,10 @@ struct SkillStat: Codable, Hashable, Sendable {
 }
 
 struct SkillReport: Codable, Hashable, Sendable {
-    var stats: [String: SkillStat] = [:]   // keyed by Skill.rawValue (stable JSON)
+    var stats: [String: SkillStat] = [:]
 
     subscript(skill: Skill) -> SkillStat { stats[skill.rawValue] ?? SkillStat(good: 0, total: 0) }
 
-    /// Percentage, or nil when there isn't enough evidence yet.
     func percent(_ skill: Skill) -> Double? {
         let s = self[skill]
         return s.total >= skill.minimumTotal ? s.percent : nil
@@ -126,17 +92,17 @@ struct SkillReport: Codable, Hashable, Sendable {
 }
 
 enum SkillThresholds {
-    static let smoothBrakeA = -2.2        // m/s² — gentler than this is a smooth slow-down
+    static let smoothBrakeA = -2.2
     static let smoothAccelA = 2.0
     static let smoothTurnLat = 2.5
-    static let episodeMinDeltaV = 2.5     // m/s (~5.6 mph) — ignore tiny speed changes
-    static let turnYaw = 0.08             // rad/s
-    static let turnMinAngle = 0.6         // rad (~35°)
-    static let speedTolerance = 2.24      // m/s (5 mph)
-    static let goodHeadway = 2.0          // s
-    static let stopFull = 0.7             // m/s (~1.5 mph): counts as a full stop
-    static let stopRolling = 4.5          // m/s (~10 mph): below = rolling stop, above = didn't stop
-    static let stopRadius = 30.0          // m
+    static let episodeMinDeltaV = 2.5
+    static let turnYaw = 0.08
+    static let turnMinAngle = 0.6
+    static let speedTolerance = 2.24
+    static let goodHeadway = 2.0
+    static let stopFull = 0.7
+    static let stopRolling = 4.5
+    static let stopRadius = 30.0
 }
 
 struct BrakeEpisode: Sendable { var start: Int; var end: Int; var vStart: Double; var vEnd: Double; var peak: Double }
@@ -198,12 +164,10 @@ enum SkillAnalyzer {
     }
 }
 
-// MARK: - Stop signs
-
 struct StopSignPass: Codable, Hashable, Sendable {
     enum Outcome: String, Codable, Sendable { case fullStop = "full_stop", rolling, missed }
     var nodeId: Int64
-    var t: Double              // sensor time of the slowest point
+    var t: Double
     var lat: Double
     var lon: Double
     var minSpeedMps: Double
@@ -214,9 +178,6 @@ struct StopSignPass: Codable, Hashable, Sendable {
 }
 
 enum StopSignAnalyzer {
-    /// A stop sign counts only when the car is on a road that contains the sign and is moving toward it.
-    /// Stop nodes shared by several roads (junction nodes) are skipped unless tagged all-way — we can't
-    /// tell which approach the sign controls, and a wrong "you ran a stop sign" is worse than silence.
     static func analyze(series s: DriveSeries, limits: [SpeedLimits.Match], controls: [OSMControl]) -> [StopSignPass] {
         guard s.count > 1, limits.count == s.count else { return [] }
         let proj = Geo.LocalProjection(lat0: s.lat[s.count / 2], lon0: s.lon[s.count / 2])
@@ -229,7 +190,6 @@ enum StopSignAnalyzer {
             for (a, b) in Numerics.runs(near) {
                 var k = a
                 for i in a...b where d[i] < d[k] { k = i }
-                // moving toward the sign: distance shrank by ≥ 8 m during the approach (or we stopped right at it)
                 let approached = d[a] - d[k] >= 8 || a == 0
                 let ways = (a...k).compactMap { limits[$0].wayId }
                 let onSignedRoad = ways.contains { c.wayIds.contains($0) }
@@ -251,14 +211,10 @@ enum StopSignAnalyzer {
     }
 }
 
-// MARK: - Moments (post-drive reflection timeline)
-
 enum MomentKind: String, Codable, Sendable {
-    // issues (mirror EventKind raw values)
     case hardBrake = "hard_brake", hardAccel = "hard_accel", harshCorner = "harsh_corner"
     case speeding, idle, tailgating, laneDrift = "lane_drift"
     case rollingStop = "rolling_stop", missedStop = "missed_stop"
-    // positives
     case goodStop = "good_stop", smoothStop = "smooth_stop", smoothTurn = "smooth_turn"
 
     var isPositive: Bool { [.goodStop, .smoothStop, .smoothTurn].contains(self) }
@@ -290,21 +246,20 @@ enum MomentKind: String, Codable, Sendable {
 struct DriveMoment: Codable, Identifiable, Hashable, Sendable {
     var id: UUID = UUID()
     var kind: MomentKind
-    var t: Double                 // sensor time
+    var t: Double
     var tEnd: Double
-    var severity: Double          // 0 for positives
+    var severity: Double
     var lat: Double?
     var lon: Double?
-    var eventId: UUID?            // set when the moment is a scored event
+    var eventId: UUID?
     var headline: String = ""
     var body: String = ""
     var tip: String = ""
     var clipPath: String? = nil
-    var place: String? = nil      // intersection / road name (Google Geocoding if configured, else OSM)
+    var place: String? = nil
 
     var isPositive: Bool { kind.isPositive }
 
-    /// Advanced mode shows only these.
     var isSignificant: Bool {
         if isPositive { return false }
         switch kind {
@@ -316,7 +271,6 @@ struct DriveMoment: Codable, Identifiable, Hashable, Sendable {
 }
 
 enum MomentBuilder {
-    /// The full reflection timeline: scored events (copy rendered now, with today's fuel price) + highlights.
     static func merge(events: [DriveEvent], highlights: [DriveMoment], tripStartT: Double, pricePerGallon: Double) -> [DriveMoment] {
         var moments = highlights
         for e in events {
@@ -329,7 +283,6 @@ enum MomentBuilder {
         return moments.sorted { $0.t < $1.t }
     }
 
-    /// Stop-sign moments and positive highlights (computed once, at analysis time).
     static func highlights(series s: DriveSeries, stops: [StopSignPass], tripStartT: Double) -> [DriveMoment] {
         var moments: [DriveMoment] = []
         let into = { (t: Double) in EventCopywriter.timeInto(t - tripStartT) }
@@ -361,7 +314,6 @@ enum MomentBuilder {
             }
             moments.append(m)
         }
-        // A few positives so the reflection isn't only bad news.
         let stopTimes = stops.map(\.t)
         let smoothStops = SkillAnalyzer.brakeEpisodes(s)
             .filter { $0.vStart >= 11 && $0.vEnd < 1 && $0.peak > SkillThresholds.smoothBrakeA }
@@ -393,8 +345,6 @@ enum MomentBuilder {
         return moments.sorted { $0.t < $1.t }
     }
 }
-
-// MARK: - What to practise next
 
 struct PracticeFocus: Codable, Hashable, Sendable, Identifiable {
     var skill: Skill?
@@ -440,7 +390,6 @@ enum PracticePlanner {
         }
     }
 
-    /// Weakest skills first (only skills with enough evidence), plus night practice when the log is short of it.
     static func plan(skills: SkillReport, nightHoursRemaining: Double?, maxItems: Int = 2) -> [PracticeFocus] {
         var ranked: [(Skill, Double)] = Skill.allCases.compactMap { sk in skills.percent(sk).map { (sk, $0) } }
         ranked.sort { $0.1 < $1.1 }
@@ -475,23 +424,18 @@ enum PracticePlanner {
     }
 }
 
-// MARK: - Sunrise / sunset (NOAA algorithm) and the night split
-
 enum Solar {
-    /// Sunrise and sunset (UTC instants) for the solar day whose UTC calendar date contains `date`.
-    /// NOAA Solar Calculator equations (Julian-century form), zenith 90.833°, iterated at each event
-    /// time — agrees with NOAA / `astral` to well under a minute at mid-latitudes.
     static func sunriseSunset(on date: Date, lat: Double, lon: Double) -> (sunrise: Date, sunset: Date)? {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "UTC")!
         let dayStart = cal.startOfDay(for: date)
         func event(rising: Bool) -> Date? {
-            var minutes = 720 - 4 * lon                       // first guess: solar noon
+            var minutes = 720 - 4 * lon
             for _ in 0..<3 {
                 guard let (eqTime, decl) = sunParameters(at: dayStart.addingTimeInterval(minutes * 60)) else { return nil }
                 let rad = Double.pi / 180
                 let cosH = cos(90.833 * rad) / (cos(lat * rad) * cos(decl)) - tan(lat * rad) * tan(decl)
-                guard cosH >= -1, cosH <= 1 else { return nil }   // polar day / night
+                guard cosH >= -1, cosH <= 1 else { return nil }
                 let ha = acos(cosH) / rad
                 let noon = 720 - 4 * lon - eqTime
                 minutes = rising ? noon - 4 * ha : noon + 4 * ha
@@ -502,7 +446,6 @@ enum Solar {
         return (rise, set)
     }
 
-    /// Equation of time (minutes) and solar declination (radians) at an instant.
     private static func sunParameters(at t: Date) -> (Double, Double)? {
         let rad = Double.pi / 180
         let jd = t.timeIntervalSince1970 / 86_400 + 2_440_587.5
@@ -524,14 +467,12 @@ enum Solar {
     }
 
     static func isNight(_ t: Date, lat: Double, lon: Double) -> Bool {
-        // Sun times for the local solar day: shift by longitude so evening in the US isn't "tomorrow" in UTC.
         let solarNoonShift = -lon / 15 * 3600
         let probe = t.addingTimeInterval(-solarNoonShift)
         guard let s = sunriseSunset(on: probe, lat: lat, lon: lon) else { return false }
         return t < s.sunrise || t > s.sunset
     }
 
-    /// Seconds of [start, end] that fall after sunset / before sunrise (sampled each minute).
     static func nightSeconds(from start: Date, to end: Date, lat: Double, lon: Double) -> Double {
         let total = end.timeIntervalSince(start)
         guard total > 0 else { return 0 }
@@ -545,8 +486,6 @@ enum Solar {
         return night
     }
 }
-
-// MARK: - Supervised practice log (learner's permit hours)
 
 struct PracticeLogEntry: Codable, Identifiable, Hashable, Sendable {
     var id: UUID = UUID()
@@ -565,8 +504,8 @@ struct PracticeLogEntry: Codable, Identifiable, Hashable, Sendable {
 }
 
 struct HoursRequirement: Codable, Equatable, Sendable {
-    var totalHours: Double = 45        // Virginia: drivers under 18, while holding a learner's permit
-    var nightHours: Double = 15        // of which at least 15 after sunset
+    var totalHours: Double = 45
+    var nightHours: Double = 15
     var label: String = "Virginia (under 18)"
 }
 
@@ -597,7 +536,6 @@ enum PracticeLogCSV {
     static func csv(_ entries: [PracticeLogEntry]) -> String {
         let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd HH:mm"; df.locale = Locale(identifier: "en_US_POSIX")
         var s = "date,duration_min,night_min,supervisor,source,notes\n"
-        // RFC 4180: quote text fields and double any quote inside them.
         func q(_ v: String) -> String { "\"" + v.replacingOccurrences(of: "\"", with: "\"\"").replacingOccurrences(of: "\n", with: " ") + "\"" }
         for e in entries.sorted(by: { $0.startedAt < $1.startedAt }) {
             s += "\(df.string(from: e.startedAt)),\(Int((e.durationS / 60).rounded())),\(Int((e.nightS / 60).rounded())),\(q(e.supervisor)),\(e.manual ? "manual" : "recorded"),\(q(e.notes))\n"

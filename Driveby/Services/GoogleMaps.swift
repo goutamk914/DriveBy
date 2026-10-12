@@ -1,27 +1,8 @@
-//  GoogleMaps.swift — Driveby
-//  Google Maps Platform integration (optional — everything works without a key):
-//
-//   • Deep links (no key needed): open any moment or hazard cell in Google Maps or Street View,
-//     so a learner can look at the intersection before driving it again.
-//   • Roads API — Snap to Roads: draws the drive's route exactly on the road instead of the
-//     slightly wobbly GPS trace.
-//   • Geocoding API: names the intersection for each moment ("Main St & Oak Ave").
-//
-//  Results are fetched when a screen opens and kept in memory only (Google's terms limit caching).
-//  Speed limits still come from OpenStreetMap: Google's speed-limit data is only sold with an Asset
-//  Tracking licence, and Apple's MapKit draws the maps for free.
-//
-//  Setup: Google Cloud console → enable "Roads API" and "Geocoding API" → create an API key →
-//  restrict it to iOS apps with this app's bundle id → paste into Resources/Config.local.plist
-//  (GOOGLE_MAPS_API_KEY; that file is git-ignored so the key never lands in the repo), or
-//  Settings → About → Developer.
-
 import Foundation
 import UIKit
 
 enum GoogleMaps {
     static let configKey = "GOOGLE_MAPS_API_KEY"
-    /// Checked in order: the git-ignored local file first, then the shared Config.plist.
     private static let configFiles = ["Config.local", "Config"]
 
     @MainActor
@@ -38,8 +19,6 @@ enum GoogleMaps {
               !key.isEmpty else { return nil }
         return key
     }
-
-    // MARK: Deep links (free, no key)
 
     @MainActor
     static var googleMapsInstalled: Bool {
@@ -61,21 +40,16 @@ enum GoogleMaps {
         return URL(string: "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=\(q)")!
     }
 
-    // MARK: Web services (need a key)
-
     private static func get(_ url: URL) async -> [String: Any]? {
         var req = URLRequest(url: url)
-        // Required when the key is restricted to iOS apps (recommended).
         if let bundle = Bundle.main.bundleIdentifier { req.setValue(bundle, forHTTPHeaderField: "X-Ios-Bundle-Identifier") }
         guard let (data, resp) = try? await HTTP.session.data(for: req),
               (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
-    /// Roads API "Snap to Roads" (≤100 points per request, interpolated). Returns [lat, lon] pairs or nil.
     static func snapToRoads(_ points: [[Double]], key: String) async -> [[Double]]? {
         guard points.count >= 2 else { return nil }
-        // ~1 point every 25–50 m is plenty; keep requests small.
         let stride = max(points.count / 400, 1)
         let sampled = Swift.stride(from: 0, to: points.count, by: stride).map { points[$0] }
         var snapped: [[Double]] = []
@@ -94,13 +68,12 @@ enum GoogleMaps {
                     snapped.append([la, lo])
                 }
             }
-            i += 99   // overlap one point so chunks join
-            if i >= sampled.count - 1 { break }   // only the shared point left — already sent
+            i += 99
+            if i >= sampled.count - 1 { break }
         }
         return snapped.count >= 2 ? snapped : nil
     }
 
-    /// Geocoding API reverse lookup: "Main St & Oak Ave" for intersections, else the street name.
     static func placeName(lat: Double, lon: Double, key: String) async -> String? {
         for type in ["intersection", "route"] {
             var c = URLComponents(string: "https://maps.googleapis.com/maps/api/geocode/json")!
@@ -117,7 +90,6 @@ enum GoogleMaps {
     }
 }
 
-/// In-memory, per-session cache for Google results (not persisted, per Google's caching terms).
 @MainActor
 final class GoogleMapsCache {
     static let shared = GoogleMapsCache()

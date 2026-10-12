@@ -1,7 +1,3 @@
-//  FuelLogView.swift — Driveby
-//  The fuel log is a VALIDATION TOOL, not the core loop: every fill-up becomes ground truth
-//  for the efficiency score. "Fuel data is the one thing you cannot speed up."
-
 import SwiftUI
 
 struct FuelLogView: View {
@@ -12,23 +8,20 @@ struct FuelLogView: View {
 
     private var logs: [FuelLog] { garage.logs(for: model.activeVehicle?.id) }
 
-    /// Tank MPG keyed by the closing fill-up id.
     private var tankMPG: [UUID: Double] {
         var out: [UUID: Double] = [:]
         for iv in Validation.tankIntervals(logs: garage.fuelLogs, drives: [], vehicleId: model.activeVehicle?.id) { out[iv.end.id] = iv.mpg }
         return out
     }
 
-    // Pushed from Settings → Vehicles (no NavigationStack of its own).
     var body: some View {
         Group {
             List {
                 Section {
-                    Label("Fill to the first click of the pump, at the same station if you can. Inconsistent fill levels are the biggest source of noise in tank-to-tank MPG.",
-                          systemImage: "fuelpump")
+                    Text("Fill to the first click of the pump, at the same station if you can. Inconsistent fill levels are the biggest source of noise in tank-to-tank MPG.")
                         .font(.footnote).foregroundStyle(.secondary)
                     NavigationLink { ValidationView() } label: {
-                        Label("See how your score predicts MPG", systemImage: "chart.dots.scatter")
+                        Text("See how your score predicts MPG")
                     }
                 }
                 Section(model.activeVehicle?.displayName ?? "Fill-ups") {
@@ -67,12 +60,12 @@ struct FuelLogView: View {
                     Button {
                         editing = FuelLog(vehicleId: model.activeVehicle?.id, loggedAt: Date(),
                                           odometerMi: (logs.first?.odometerMi ?? 0), gallons: 0)
-                    } label: { Image(systemName: "plus") }
+                    } label: { Text("Add") }
                     .accessibilityLabel("Add fill-up")
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     if let csvURL {
-                        ShareLink(item: csvURL) { Image(systemName: "square.and.arrow.up") }
+                        ShareLink(item: csvURL) { Text("Export") }
                     }
                 }
             }

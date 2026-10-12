@@ -1,5 +1,3 @@
-//  CoreTests.swift — unit tests for numerics, hazard k-anonymity, validation, OBD parsing, trips.
-
 import XCTest
 @testable import DrivebyCore
 
@@ -17,7 +15,7 @@ final class NumericsTests: XCTestCase {
     func testSavgolMatchesScipy() {
         let out = Numerics.savgol(arr("y"), window: 21, order: 3)
         for (a, b) in zip(out, arr("savgol_21_3")) { XCTAssertEqual(a, b, accuracy: 1e-9) }
-        let short = Numerics.savgol(arr("short"), window: 21, order: 3)   // shrinks to 9 like the Python wrapper
+        let short = Numerics.savgol(arr("short"), window: 21, order: 3)
         for (a, b) in zip(short, arr("savgol_short")) { XCTAssertEqual(a, b, accuracy: 1e-9) }
     }
 
@@ -69,17 +67,13 @@ final class HazardTests: XCTestCase {
         func c(_ user: String, _ n: Int) -> [HazardAggregator.Contribution] {
             (0..<n).map { _ in .init(lat: base.lat + 0.00001, lon: base.lon, kind: .hardBrake, driveId: UUID(), userKey: user) }
         }
-        // 9 events from 2 drivers → NOT published (k_users = 3)
         XCTAssertTrue(HazardAggregator.publish(c("a", 5) + c("b", 4)).isEmpty)
-        // 4 events from 4 drivers → NOT published (k_events = 5)
         XCTAssertTrue(HazardAggregator.publish(c("a", 1) + c("b", 1) + c("c", 1) + c("d", 1)).isEmpty)
-        // 7 events from 3 drivers → published, counts only
         let cells = HazardAggregator.publish(c("a", 3) + c("b", 2) + c("c", 2))
         XCTAssertEqual(cells.count, 1)
         XCTAssertEqual(cells[0].eventCount, 7)
         XCTAssertEqual(cells[0].distinctUsers, 3)
         XCTAssertEqual(cells[0].summary, "This intersection: 7 hard-braking events from 3 drivers")
-        // speeding / idle never enter the public map
         let other = (0..<10).map { i in HazardAggregator.Contribution(lat: base.lat, lon: base.lon, kind: .speeding, driveId: UUID(), userKey: "u\(i)") }
         XCTAssertTrue(HazardAggregator.publish(other).isEmpty)
     }
@@ -114,14 +108,13 @@ final class ValidationTests: XCTestCase {
         let drives = [DriveForValidation(id: UUID(), vehicleId: v, startedAt: date(2), miles: 200, components: comps, obdFuelGal: nil)]
         let iv = Validation.tankIntervals(logs: logs, drives: drives, vehicleId: v)
         XCTAssertEqual(iv.count, 2)
-        XCTAssertEqual(iv[0].mpg, 300.0 / 10.0, accuracy: 1e-9)   // partial 4 gal + full 6 gal
+        XCTAssertEqual(iv[0].mpg, 300.0 / 10.0, accuracy: 1e-9)
         XCTAssertEqual(iv[0].coverage, 200.0 / 300.0, accuracy: 1e-9)
         XCTAssertEqual(iv[1].mpg, 30, accuracy: 1e-9)
         XCTAssertNil(iv[1].meanComponents)
     }
 
     func testFitWeightsRecoversTheComponentThatMatters() throws {
-        // Fuel economy driven only by braking waste → fitted weights should concentrate on brake_waste.
         var rows: [(components: EfficiencyComponents, target: Double)] = []
         for i in 0..<12 {
             let bw = 30_000 + Double(i) * 35_000
@@ -161,7 +154,6 @@ final class OBDTests: XCTestCase {
     }
 
     func testSupportedPIDBitmask() {
-        // BE 1F A8 13 → standard example: 01,03,04,05,06,07,0C,0D,0E,0F,10,11,13,15,1C,1F,20
         let s = OBDParser.supportedPIDs("41 00 BE 1F A8 13", base: 0x00)
         XCTAssertTrue(s.isSuperset(of: ["0C", "0D", "10"]))
         XCTAssertFalse(s.contains("5E"))
@@ -176,7 +168,7 @@ final class TripAndContractTests: XCTestCase {
         var t = 0.0
         for _ in 0..<15 { signals.append(d.feed(t: t, speed: 5)); t += 1 }
         XCTAssertEqual(signals.filter { $0 == .started }.count, 1)
-        for _ in 0..<180 { XCTAssertEqual(d.feed(t: t, speed: 0), .none); t += 1 }  // t = 15…194
+        for _ in 0..<180 { XCTAssertEqual(d.feed(t: t, speed: 0), .none); t += 1 }
         XCTAssertEqual(d.feed(t: t, speed: 0), .parked)
     }
 
@@ -216,7 +208,7 @@ final class TripAndContractTests: XCTestCase {
         s.dt = 0.1
         let n = 6000
         s.t = (0..<n).map { Double($0) * 0.1 }
-        s.v = [Double](repeating: 26.8, count: n)  // 60 mph for 10 min = 10 miles
+        s.v = [Double](repeating: 26.8, count: n)
         s.distance = (0..<n).map { Double($0) * 2.68 }
         let ev = DriveEvent(kind: .hardBrake, tOffsetS: 10, tEndS: 11, tPeakS: 10.5, severity: 0.5)
         let b = Safety.score(events: [ev], series: s)
@@ -226,8 +218,6 @@ final class TripAndContractTests: XCTestCase {
 }
 
 final class ScoringModelInteropTests: XCTestCase {
-    /// notebooks/validation.ipynb writes scoring_model.json with processor.scoring.ScoringModel.to_json();
-    /// the app must import it unchanged (Settings → Scoring model → Import).
     func testDecodesModelWrittenByPython() throws {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures", withExtension: nil)).appendingPathComponent("scoring_model_python.json")
         let m = try JSONDecoder().decode(ScoringModel.self, from: Data(contentsOf: url))
@@ -237,7 +227,6 @@ final class ScoringModelInteropTests: XCTestCase {
         XCTAssertEqual(m.fitR2 ?? 0, 0.71, accuracy: 1e-12)
         XCTAssertEqual(m.normalization["brake_waste"], ScoringModel.Range(p5: 20_000, p95: 450_000))
         XCTAssertEqual(m.safety, SafetyCoefficients())
-        // Fitted models are not re-normalised by the corpus.
         XCTAssertEqual(m.withCorpus(Array(repeating: EfficiencyComponents(brakeWaste: 1, idleFrac: 0, jerkRMS: 0, highSpeed: 0, accelWaste: 0), count: 10)), m)
     }
 }

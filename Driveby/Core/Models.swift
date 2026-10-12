@@ -1,7 +1,3 @@
-//  Models.swift — Driveby
-//  Persistent records. Field names (CodingKeys) match db/schema.sql so the same
-//  JSON goes to disk, to Supabase, and to the Python processor.
-
 import Foundation
 
 struct Vehicle: Codable, Identifiable, Hashable, Sendable {
@@ -15,15 +11,14 @@ struct Vehicle: Codable, Identifiable, Hashable, Sendable {
     var epaCombined: Double? = nil
     var massKg: Double = 1500
     var fuelType: String? = nil
-    var atvType: String? = nil      // EPA "atvType": Hybrid, EV, Plug-in Hybrid, …
-    var regenFactor: Double = 0     // share of braking energy recovered (0 for gasoline-only)
+    var atvType: String? = nil
+    var regenFactor: Double = 0
     var trim: String? = nil
 
     var displayName: String { "\(year) \(make) \(model)" }
 
     var params: VehicleParams { VehicleParams(massKg: massKg, regenFactor: regenFactor, epaCombined: epaCombined) }
 
-    /// Default regenerative recovery by EPA powertrain type (Step 3.1 note on hybrids/EVs).
     static func defaultRegen(atvType: String?) -> Double {
         let s = atvType?.lowercased() ?? ""
         if s.contains("plug") { return 0.6 }
@@ -46,7 +41,6 @@ struct FuelLog: Codable, Identifiable, Hashable, Sendable {
     var odometerMi: Double
     var gallons: Double
     var priceTotal: Double?
-    /// Filled to the first click of the pump. Partial fills are folded into the next full fill.
     var filledToFull: Bool = true
 
     var pricePerGallon: Double? {
@@ -60,10 +54,9 @@ struct FuelLog: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// Lightweight index row for a drive (the full analysis lives in analysis.json).
 struct DriveRecord: Codable, Identifiable, Hashable, Sendable {
     var id: UUID
-    var folder: String                  // e.g. "drive_0007"
+    var folder: String
     var vehicleId: UUID?
     var startedAt: Date
     var endedAt: Date?

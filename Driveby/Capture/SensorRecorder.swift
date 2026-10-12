@@ -1,13 +1,7 @@
-//  SensorRecorder.swift — Driveby
-//  Phase 1.1 — GPS 1 Hz (BestForNavigation) + accelerometer/gyro 50 Hz → sensors.jsonl.
-//  Every `t` is seconds since recording start on the MONOTONIC clock: CoreMotion
-//  timestamps and AVFoundation frame times share it, wall clock never enters the log.
-
 import CoreLocation
 import CoreMotion
 import Foundation
 
-/// Live numbers for the recording HUD (main thread).
 struct LiveSensorState: Equatable {
     var speedMps: Double = 0
     var distanceM: Double = 0
@@ -39,21 +33,17 @@ final class SensorRecorder: NSObject, CLLocationManagerDelegate {
     }
     private var t0: TimeInterval = 0
     private var lastFix: CLLocation?
-    private var imuCount = 0          // touched only on motionQueue
+    private var imuCount = 0
     private var lastUIUpdate: TimeInterval = 0
 
-    /// Main-thread callbacks.
     var onState: ((LiveSensorState) -> Void)?
     var onSpeed: ((_ t: Double, _ speed: Double) -> Void)?
     var onAuthorizationChange: ((CLAuthorizationStatus) -> Void)?
-    /// Each good GPS fix while recording (for the live coach's braking/speeding cues).
     var onFix: ((_ t: Double, _ fix: CLLocation) -> Void)?
-    /// Yaw rate (rad/s) averaged to ~10 Hz while recording (for live cornering cues).
     var onYawRate: ((_ t: Double, _ yawRate: Double) -> Void)?
 
-    /// IMU samples averaged per `onYawRate` call: 50 Hz / 5 = 10 Hz.
     private static let yawAverageSamples = 5
-    private var yawSum = 0.0          // touched only on motionQueue
+    private var yawSum = 0.0
     private var yawCount = 0
 
     private(set) var state = LiveSensorState()
@@ -74,7 +64,6 @@ final class SensorRecorder: NSObject, CLLocationManagerDelegate {
 
     var motionAvailable: Bool { motion.isDeviceMotionAvailable }
 
-    /// Location only, no file — used while "armed" for auto-start.
     func startMonitoring() {
         monitoringOnly = true
         location.startUpdatingLocation()
@@ -86,8 +75,6 @@ final class SensorRecorder: NSObject, CLLocationManagerDelegate {
         if !isRunning { location.stopUpdatingLocation() }
     }
 
-    /// Start logging. `t0` = MonotonicClock time that defines t = 0. `background` keeps GPS + IMU
-    /// alive with the screen off (sensors-only mode).
     func start(writer: SampleFileWriter, t0: TimeInterval, background: Bool) {
         self.writer = writer
         self.t0 = t0
@@ -108,13 +95,10 @@ final class SensorRecorder: NSObject, CLLocationManagerDelegate {
         motion.deviceMotionUpdateInterval = 1.0 / Self.imuHz
         motion.startDeviceMotionUpdates(to: motionQueue) { [weak self] m, _ in
             guard let self, let m, let w = self.writer else { return }
-            // CMDeviceMotion.timestamp: seconds since boot on the same mach clock as systemUptime.
             let t = m.timestamp - self.t0
             guard t >= 0 else { return }
             let g = m.gravity, ua = m.userAcceleration, rr = m.rotationRate
-            // Specific force in m/s² (+9.81 on the axis pointing UP — the convention of the data-contract sample).
             let ax = -(g.x + ua.x) * self.G, ay = -(g.y + ua.y) * self.G, az = -(g.z + ua.z) * self.G
-            // Yaw rate = rotation about the vertical (orientation-free, no quaternion math needed).
             let gn = (g.x * g.x + g.y * g.y + g.z * g.z).squareRoot()
             let yaw = gn > 1e-6 ? -(rr.x * g.x + rr.y * g.y + rr.z * g.z) / gn : 0
             w.append(SampleLine.imu(t: t, ax: ax, ay: ay, az: az, gx: rr.x, gy: rr.y, gz: rr.z, yaw: yaw))
@@ -143,13 +127,10 @@ final class SensorRecorder: NSObject, CLLocationManagerDelegate {
         writer = nil
     }
 
-    // MARK: CLLocationManagerDelegate (main thread)
-
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         let nowMono = MonotonicClock.now()
         let nowWall = Date()
         for loc in locations {
-            // Convert the fix's wall-clock timestamp onto the monotonic clock.
             let fixMono = nowMono - nowWall.timeIntervalSince(loc.timestamp)
             let t = fixMono - t0
             let spd: Double? = loc.speed >= 0 ? loc.speed : nil

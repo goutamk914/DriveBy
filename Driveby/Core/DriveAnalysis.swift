@@ -1,9 +1,3 @@
-//  DriveAnalysis.swift — Driveby
-//  One function from (sensor log, vehicle, speed-limit ways) → everything the UI shows.
-//  Two-step because speed limits need the network:
-//    1. `plan(log:)` → resampled series + trip + the Overpass tiles to fetch
-//    2. `analyze(...)` with whatever ways were obtained (possibly none → speeding marked unavailable)
-
 import Foundation
 
 struct VehicleParams: Sendable {
@@ -13,9 +7,9 @@ struct VehicleParams: Sendable {
 }
 
 struct TracePoint: Codable, Hashable, Sendable {
-    var t: Double          // sensor time
-    var v: Double          // m/s
-    var a: Double          // a_long m/s²
+    var t: Double
+    var v: Double
+    var a: Double
     var lat: Double
     var lon: Double
     var aLat: Double
@@ -36,22 +30,20 @@ struct DriveAnalysis: Codable, Sendable {
     var components: EfficiencyComponents
     var safety: SafetyBreakdown
     var events: [DriveEvent]
-    /// 2 Hz trace for charts, the route map, and the clip overlay.
     var trace: [TracePoint]
     var speedLimitsAvailable: Bool
-    var speedLimitCoverage: Double       // fraction of samples with a matched limit
-    var tailgatingAvailable: Bool        // lead-vehicle detections were present
+    var speedLimitCoverage: Double
+    var tailgatingAvailable: Bool
     var gpsFixes: Int
     var imuSamples: Int
     var malformedLines: Int
     var imuJerkRMS: Double?
-    var obdFuelGal: Double?              // integrated from OBD fuel rate / MAF, nil if unavailable
-    var obdMethod: String?               // "fuel_rate" | "maf"
+    var obdFuelGal: Double?
+    var obdMethod: String?
     var processedAt: Date
-    // Coaching layer (v3) — optional so older analysis.json files and the Python processor's output still decode.
     var skills: SkillReport? = nil
     var stopSigns: [StopSignPass]? = nil
-    var highlights: [DriveMoment]? = nil   // positive moments + stop-sign moments (events are merged at display time)
+    var highlights: [DriveMoment]? = nil
 
     enum CodingKeys: String, CodingKey {
         case version, tripStartT = "trip_start_t", tripEndT = "trip_end_t", distanceM = "distance_m"
@@ -63,7 +55,6 @@ struct DriveAnalysis: Codable, Sendable {
         case skills, stopSigns = "stop_signs", highlights
     }
 
-    /// The post-drive reflection timeline (good and bad moments, chronological).
     func moments(pricePerGallon: Double) -> [DriveMoment] {
         MomentBuilder.merge(events: events, highlights: highlights ?? [], tripStartT: tripStartT, pricePerGallon: pricePerGallon)
     }
@@ -91,7 +82,7 @@ enum DriveAnalyzer {
     }
 
     struct Plan: Sendable {
-        var series: DriveSeries      // full recording
+        var series: DriveSeries
         var trip: TripSegmenter.Trip
         var tripSeries: DriveSeries
         var tiles: [SpeedLimits.Tile]
@@ -146,8 +137,6 @@ enum DriveAnalyzer {
         return result
     }
 
-    /// Decision 4: integrate fuel from OBD — PID 015E fuel rate (L/h) preferred,
-    /// else MAF (PID 0110): fuel_g/s = MAF / 14.7; gal/s = fuel_g/s / 2830.
     static func obdFuel(_ obd: [OBDSample], from t0: Double, to t1: Double) -> (gallons: Double, method: String)? {
         let window = obd.filter { $0.t >= t0 && $0.t <= t1 }
         guard window.count >= 10 else { return nil }
@@ -158,7 +147,7 @@ enum DriveAnalyzer {
         var gal = 0.0
         for k in 1..<samples.count {
             let dt = samples[k].0 - samples[k - 1].0
-            guard dt > 0 && dt < 10 else { continue }  // don't integrate across dropouts
+            guard dt > 0 && dt < 10 else { continue }
             gal += 0.5 * (samples[k].1 + samples[k - 1].1) * dt
         }
         return (gal, method)

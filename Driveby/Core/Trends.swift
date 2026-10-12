@@ -1,7 +1,3 @@
-//  Trends.swift — Driveby
-//  Private trend lines and weekly streaks — the replacement for a public
-//  leaderboard (which would reward checking your phone and driving competitively).
-
 import Foundation
 
 struct DailyScore: Identifiable, Hashable, Sendable {
@@ -13,7 +9,6 @@ struct DailyScore: Identifiable, Hashable, Sendable {
 }
 
 enum Trends {
-    /// Distance-weighted daily averages over the last `days` days (oldest first, gaps omitted).
     static func daily(_ drives: [DriveRecord], days: Int, now: Date = Date(), calendar: Calendar = .current) -> [DailyScore] {
         guard let from = calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: now)) else { return [] }
         let recent = drives.filter { $0.processed && $0.startedAt >= from }
@@ -33,8 +28,6 @@ enum Trends {
         }
     }
 
-    /// Consecutive weeks (ending with the current or previous week) whose distance-weighted
-    /// safety average was ≥ `threshold`. The current week counts only if it already qualifies.
     static func weeklyStreak(_ drives: [DriveRecord], threshold: Double = 80, now: Date = Date(),
                              calendar: Calendar = .current) -> Int {
         var cal = calendar
@@ -60,7 +53,6 @@ enum Trends {
         return streak
     }
 
-    /// Drives in a row (most recent first) without a hard-braking event.
     static func smoothStreak(_ drives: [DriveRecord], hardBrakeCounts: [UUID: Int]) -> Int {
         var n = 0
         for d in drives.filter(\.processed).sorted(by: { $0.startedAt > $1.startedAt }) {

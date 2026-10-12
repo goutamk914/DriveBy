@@ -1,5 +1,3 @@
-//  CoachingTests.swift — skills, stop signs, moments, practice plan, sunset maths, hours log.
-
 import XCTest
 @testable import DrivebyCore
 
@@ -10,7 +8,6 @@ final class CoachingTests: XCTestCase {
         return try Data(contentsOf: base.appendingPathComponent(path))
     }
 
-    /// The synthetic drive + its ways, with node ids added so stop signs can be tied to roads.
     private func scenario() throws -> (DriveAnalyzer.Plan, SensorLog, [OSMWay]) {
         let log = SensorLogParser.parse(try fixture("synth_drive/sensors.jsonl"))
         var ways = SpeedLimits.parseOverpass(try fixture("synth_drive/overpass.json"))
@@ -21,14 +18,11 @@ final class CoachingTests: XCTestCase {
     func testStopSignOutcomes() throws {
         let (plan, log, ways) = try scenario()
         let s = plan.tripSeries
-        // Where the car came to rest at the first stop (on Route 7, way 101), and a point it blew through on way 102.
         let stopIdx = s.v.firstIndex { $0 < 0.3 }!
         let fastIdx = s.v.indices.first { s.v[$0] > 30 && s.t[$0] > 230 }!
         let stopSign = OSMControl(id: 1010, lat: s.lat[stopIdx], lon: s.lon[stopIdx], kind: .stop, allWay: false, wayIds: [101])
         let missed = OSMControl(id: 1020, lat: s.lat[fastIdx], lon: s.lon[fastIdx], kind: .stop, allWay: false, wayIds: [102])
-        // A stop node shared by two roads (junction) is ambiguous → ignored.
         let ambiguous = OSMControl(id: 1021, lat: s.lat[fastIdx], lon: s.lon[fastIdx], kind: .stop, allWay: false, wayIds: [101, 102])
-        // A stop sign on a road we are NOT on (cross street) → ignored even though we pass right by it.
         let crossStreet = OSMControl(id: 1030, lat: s.lat[fastIdx], lon: s.lon[fastIdx], kind: .stop, allWay: false, wayIds: [103])
 
         let a = DriveAnalyzer.analyze(plan: plan, log: log, vehicle: VehicleParams(), ways: ways,
@@ -50,7 +44,6 @@ final class CoachingTests: XCTestCase {
         XCTAssertTrue(flagged.body.contains("map data can be wrong"), "a missed stop is flagged for review, not a verdict")
         XCTAssertTrue(flagged.isSignificant)
         XCTAssertEqual(moments.map(\.t), moments.map(\.t).sorted())
-        // every scored event appears exactly once in the timeline
         XCTAssertEqual(moments.filter { $0.eventId != nil }.count, a.events.count)
     }
 
@@ -58,24 +51,18 @@ final class CoachingTests: XCTestCase {
         let (plan, log, ways) = try scenario()
         let a = DriveAnalyzer.analyze(plan: plan, log: log, vehicle: VehicleParams(), ways: ways)
         let skills = try XCTUnwrap(a.skills)
-        // Slow-downs: the hard stop (not smooth) + two gentle −1.0 m/s² decelerations (smooth).
         XCTAssertEqual(skills[.smoothBraking].total, 3)
         XCTAssertEqual(skills[.smoothBraking].good, 2)
         XCTAssertEqual(skills.percent(.smoothBraking) ?? 0, 66.67, accuracy: 0.01)
-        // Speed-ups: gentle start, hard launch, gentle highway build-up.
         XCTAssertEqual(skills[.smoothAcceleration].good, 2)
         XCTAssertEqual(skills[.smoothAcceleration].total, 3)
-        // One sharp 90° turn — counted, not smooth, not enough turns for a percentage yet.
         XCTAssertEqual(skills[.turns].total, 1)
         XCTAssertEqual(skills[.turns].good, 0)
         XCTAssertNil(skills.percent(.turns))
-        // Speed control: the 73 mph stretch on a 40 mph road pulls this well below 100%.
         let speed = try XCTUnwrap(skills.percent(.speedControl))
         XCTAssertLessThan(speed, 75)
         XCTAssertGreaterThan(speed, 30)
-        // Following distance: the only lead-vehicle stretch is a ~0.6 s tailgate.
         XCTAssertEqual(skills[.followingDistance].good, 0)
-        // Positive highlights exist (a gentle stop to park).
         XCTAssertTrue((a.highlights ?? []).contains { $0.isPositive })
     }
 
@@ -88,9 +75,9 @@ final class CoachingTests: XCTestCase {
 
     func testPracticePlanPicksWeakestSkill() {
         var r = SkillReport()
-        r.stats[Skill.smoothBraking.rawValue] = SkillStat(good: 6, total: 10)   // 60 %
-        r.stats[Skill.turns.rawValue] = SkillStat(good: 9, total: 10)           // 90 % — fine
-        r.stats[Skill.stopSigns.rawValue] = SkillStat(good: 3, total: 4)        // 75 %
+        r.stats[Skill.smoothBraking.rawValue] = SkillStat(good: 6, total: 10)
+        r.stats[Skill.turns.rawValue] = SkillStat(good: 9, total: 10)
+        r.stats[Skill.stopSigns.rawValue] = SkillStat(good: 3, total: 4)
         let plan = PracticePlanner.plan(skills: r, nightHoursRemaining: nil)
         XCTAssertEqual(plan.map(\.skill), [.smoothBraking, .stopSigns])
         XCTAssertFalse(plan[0].steps.isEmpty)
@@ -99,7 +86,6 @@ final class CoachingTests: XCTestCase {
     }
 
     func testSunsetMatchesReferenceAlgorithm() throws {
-        // Reference values from the `astral` Python package.
         let utc = ISO8601DateFormatter()
         let leesburg = try XCTUnwrap(Solar.sunriseSunset(on: utc.date(from: "2026-10-04T12:00:00Z")!, lat: 39.115, lon: -77.564))
         XCTAssertEqual(leesburg.sunrise.timeIntervalSince(utc.date(from: "2026-10-04T11:09:25Z")!), 0, accuracy: 45)
@@ -110,11 +96,9 @@ final class CoachingTests: XCTestCase {
 
     func testNightSplitAroundSunset() {
         let utc = ISO8601DateFormatter()
-        // 6:30–7:30 pm EDT in Leesburg on Oct 4: sunset 6:47:48 pm → ~42 min of night.
         let start = utc.date(from: "2026-10-04T22:30:00Z")!, end = utc.date(from: "2026-10-04T23:30:00Z")!
         let night = Solar.nightSeconds(from: start, to: end, lat: 39.115, lon: -77.564)
         XCTAssertEqual(night / 60, 42, accuracy: 2)
-        // A noon drive has no night time; a 2 am drive is all night.
         XCTAssertEqual(Solar.nightSeconds(from: utc.date(from: "2026-10-04T16:00:00Z")!, to: utc.date(from: "2026-10-04T17:00:00Z")!,
                                           lat: 39.115, lon: -77.564), 0)
         XCTAssertEqual(Solar.nightSeconds(from: utc.date(from: "2026-10-05T06:00:00Z")!, to: utc.date(from: "2026-10-05T06:30:00Z")!,
@@ -160,7 +144,6 @@ final class CoachingTests: XCTestCase {
     }
 
     func testAnalysisV2StillDecodes() throws {
-        // analysis.json written by the Python processor (no coaching fields) must still load in the app.
         let (plan, log, ways) = try scenario()
         var a = DriveAnalyzer.analyze(plan: plan, log: log, vehicle: VehicleParams(), ways: ways)
         a.skills = nil; a.highlights = nil; a.stopSigns = nil

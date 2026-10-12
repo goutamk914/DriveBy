@@ -1,8 +1,3 @@
-//  RecordingController.swift — Driveby
-//  One drive = one folder. Starts/stops sensors, OBD and the redacting camera together on a
-//  single monotonic clock, writes the sidecar, auto-starts/stops per Step 1.3, survives the phone
-//  locking mid-drive (sensors keep going in the background; the video segment is finalised).
-
 import AVFoundation
 import CoreLocation
 import Foundation
@@ -27,11 +22,8 @@ final class RecordingController {
     private(set) var cameraError: String?
     private(set) var moving = false
     var message: String?
-    /// Latest live coaching cue (spoken, and shown large on the recording screen for a moment).
     private(set) var lastCue: LiveCueEvent?
-    /// Speed limit (m/s) where the car is, when OpenStreetMap knows it.
     private(set) var speedLimitMps: Double?
-    /// A passenger can silence the voice for the rest of this drive (cues still show on screen).
     private(set) var voiceMuted = false
 
     @ObservationIgnored let camera = CameraRecorder()
@@ -49,7 +41,6 @@ final class RecordingController {
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let drives: DriveStore
     @ObservationIgnored private let obd: OBDManager
-    /// Called when a drive's files are complete and ready for processing.
     @ObservationIgnored var onFinished: ((DriveRecord) -> Void)?
 
     init(settings: AppSettings, drives: DriveStore, obd: OBDManager) {
@@ -62,7 +53,6 @@ final class RecordingController {
         sensors.onYawRate = { [weak self] t, yaw in self?.coachYaw(t: t, yawRate: yaw) }
         camera.onInterrupted = { [weak self] reason in self?.videoInterruptedReason = reason }
         camera.onVideoStarted = { [weak self] start, focal, w, h in
-            // Persist immediately so a crash later still leaves a correctly aligned video.
             guard let self, var side = self.sidecar else { return }
             side.videoStartT = start; side.focalPx = focal; side.videoWidth = w; side.videoHeight = h
             self.sidecar = side
@@ -78,8 +68,6 @@ final class RecordingController {
     var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
     var currentDriveId: UUID? { phase == .recording ? driveId : nil }
 
-    // MARK: Preview / mount check
-
     func startPreview() {
         guard CameraRecorder.authorization == .authorized else { return }
         camera.startSession { [weak self] err in self?.cameraError = err?.localizedDescription }
@@ -88,8 +76,6 @@ final class RecordingController {
     func stopPreview() {
         if phase == .idle { camera.stopSession() }
     }
-
-    // MARK: Auto-start (Step 1.3: start on speed > 2 m/s sustained 10 s)
 
     func arm(vehicleId: UUID?, supervisor: String? = nil) {
         guard phase == .idle else { return }
@@ -124,8 +110,6 @@ final class RecordingController {
             break
         }
     }
-
-    // MARK: Start / stop
 
     func start(vehicleId: UUID?, supervisor: String? = nil) {
         guard phase == .idle || phase == .armed else { return }
@@ -170,7 +154,6 @@ final class RecordingController {
             drives.add(DriveRecord(id: driveId, folder: folder, vehicleId: vehicleId, startedAt: now, hasVideo: useCamera))
 
             detector = LiveTripDetector()
-            // Background location keeps GPS + IMU alive if the phone locks mid-drive.
             sensors.start(writer: w, t0: t0, background: true)
             if settings.obdEnabled && obd.isReady { obd.startLogging(writer: w, t0: t0) }
             if useCamera {
@@ -219,7 +202,6 @@ final class RecordingController {
         guard var side = sidecar, let folder = folderName else { phase = .idle; return }
         side.endedAt = Date()
         if summary == nil, let v = side.videoFile {
-            // Camera never started (permission revoked / configuration failed) — sensors-only drive.
             try? FileManager.default.removeItem(at: Storage.folder(folder).appendingPathComponent(v))
             side.videoFile = nil
             side.videoStartT = nil
@@ -265,8 +247,6 @@ final class RecordingController {
         return machine.isEmpty ? UIDevice.current.model : machine
     }
 
-    // MARK: Live coaching (spoken cues while recording)
-
     func toggleVoice() {
         voiceMuted.toggle()
         if voiceMuted { voice.stop() }
@@ -282,14 +262,12 @@ final class RecordingController {
         voice.say(settings.isNewDriver ? "Recording. Drive safely, I'll speak up if something needs attention." : "Driveby is recording.")
     }
 
-    /// Seconds since recording start on the sensor clock — the time base every cue (and `lastCue.t`) uses.
     var sensorTime: Double { phase == .recording ? MonotonicClock.now() - t0 : 0 }
 
     private func coachFix(t: Double, fix: CLLocation) {
         guard phase == .recording, fix.speed >= 0 else { return }
         let match = liveLimits.match(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude,
                                      heading: fix.course >= 0 ? fix.course : .nan, speed: fix.speed)
-        // Only a posted (tagged) limit is drawn as a sign; a road-type estimate still guards against speeding.
         speedLimitMps = match.tagged ? match.limitMps : nil
         deliver(coach.speed(t: t, v: fix.speed, limitMps: match.limitMps, posted: match.tagged))
     }
@@ -310,10 +288,6 @@ final class RecordingController {
         if !voiceMuted { voice.say(event.cue.phrase(mode: settings.driverMode, limitMph: event.limitMph)) }
     }
 
-    // MARK: Crash / dead-battery recovery
-
-    /// Drives whose sidecar has no `ended_at` were cut off (crash, dead battery, force-quit).
-    /// The JSONL was flushed every 5 s and the video is fragmented, so both are usable — close them out.
     func recoverInterruptedDrives() -> [DriveRecord] {
         var recovered: [DriveRecord] = []
         for r in drives.records where !r.processed && r.processingError == nil && r.id != currentDriveId {
@@ -326,7 +300,6 @@ final class RecordingController {
             if let v = side.videoFile {
                 let vURL = folder.appendingPathComponent(v)
                 if !FileManager.default.fileExists(atPath: vURL.path) || side.videoStartT == nil {
-                    // No frame ever reached disk (video_start_t is written with the first frame).
                     try? FileManager.default.removeItem(at: vURL)
                     side.videoFile = nil
                 }

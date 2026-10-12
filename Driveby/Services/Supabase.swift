@@ -1,15 +1,5 @@
-//  Supabase.swift — Driveby
-//  Minimal, dependency-free Supabase client (GoTrue auth, PostgREST, Storage) over URLSession.
-//  Only derived data leaves the phone: drive summaries, numeric events, and — if the user opts
-//  in — blurred event clips. Raw video and the raw sensor log never upload.
-//
-//  Configure in Driveby/Resources/Config.plist (SUPABASE_URL, SUPABASE_ANON_KEY) or in
-//  Settings → Developer. Without it, Driveby runs fully local ("Continue without an account").
-
 import Foundation
 import Security
-
-// MARK: - Config
 
 struct SupabaseConfig: Equatable {
     var url: URL
@@ -29,8 +19,6 @@ struct SupabaseConfig: Equatable {
         return SupabaseConfig(url: url, anonKey: key)
     }
 }
-
-// MARK: - Keychain
 
 enum Keychain {
     private static let service = "org.driveby.auth"
@@ -54,8 +42,6 @@ enum Keychain {
         return SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess ? out as? Data : nil
     }
 }
-
-// MARK: - Session
 
 struct AuthSession: Codable, Equatable {
     var accessToken: String
@@ -88,8 +74,6 @@ enum SupabaseError: LocalizedError {
     }
 }
 
-// MARK: - Client
-
 final class SupabaseClient: @unchecked Sendable {
     let config: SupabaseConfig
     private let lock = NSLock()
@@ -119,7 +103,6 @@ final class SupabaseClient: @unchecked Sendable {
             req.setValue("Bearer \(config.anonKey)", forHTTPHeaderField: "Authorization")
         }
         if let json {
-            // JSONSerialization raises (crashes) on NaN/Infinity — scrub them to null first.
             req.httpBody = try JSONSerialization.data(withJSONObject: Self.sanitize(json))
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         } else if let body {
@@ -148,8 +131,6 @@ final class SupabaseClient: @unchecked Sendable {
         default: return v
         }
     }
-
-    // MARK: Auth (GoTrue)
 
     private func storeSession(from data: Data) throws -> AuthSession {
         guard let o = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw SupabaseError.decoding }
@@ -201,8 +182,6 @@ final class SupabaseClient: @unchecked Sendable {
         session = nil
     }
 
-    // MARK: PostgREST
-
     func upsert(_ table: String, rows: [[String: Any]]) async throws {
         guard !rows.isEmpty else { return }
         var comps = URLComponents(url: endpoint("rest/v1/\(table)"), resolvingAgainstBaseURL: false)!
@@ -226,7 +205,6 @@ final class SupabaseClient: @unchecked Sendable {
         try await request(endpoint("rest/v1/rpc/\(fn)"), method: "POST", json: params, auth: auth)
     }
 
-    /// Public, world-readable aggregate — no sign-in required.
     func hazardCells() async throws -> [HazardCell] {
         var comps = URLComponents(url: endpoint("rest/v1/hazard_cells"), resolvingAgainstBaseURL: false)!
         comps.queryItems = [URLQueryItem(name: "select", value: "*"), URLQueryItem(name: "order", value: "event_count.desc"),
@@ -241,8 +219,6 @@ final class SupabaseClient: @unchecked Sendable {
         }
         return try dec.decode([HazardCell].self, from: data)
     }
-
-    // MARK: Storage (blurred clips only)
 
     func upload(bucket: String, path: String, file: URL, contentType: String) async throws {
         let data = try Data(contentsOf: file)

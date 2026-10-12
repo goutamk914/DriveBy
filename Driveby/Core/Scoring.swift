@@ -1,18 +1,11 @@
-//  Scoring.swift — Driveby
-//  Phase 3 (efficiency, validated against real fuel) and Phase 5.3 (safety,
-//  built from established telematics thresholds — NOT validated; we say so in the UI).
-//  Mirrors processor/scoring.py.
-
 import Foundation
 
-// MARK: - Efficiency components (Step 3.2)
-
 struct EfficiencyComponents: Codable, Hashable, Sendable {
-    var brakeWaste: Double      // J/km of kinetic energy thrown away as brake heat
-    var idleFrac: Double        // idle seconds / total seconds
-    var jerkRMS: Double         // m/s³, RMS of d(a_long)/dt
-    var highSpeed: Double       // fraction of time above 29 m/s (≈65 mph) — drag ∝ v²
-    var accelWaste: Double      // m/s², time-average of max(a_long − 1.5, 0)
+    var brakeWaste: Double
+    var idleFrac: Double
+    var jerkRMS: Double
+    var highSpeed: Double
+    var accelWaste: Double
 
     enum CodingKeys: String, CodingKey {
         case brakeWaste = "brake_waste", idleFrac = "idle_frac", jerkRMS = "jerk_rms"
@@ -58,8 +51,6 @@ struct EfficiencyComponents: Codable, Hashable, Sendable {
 }
 
 enum Efficiency {
-    /// Kinetic energy dissipated by braking per km (Step 3.1). Intervals: a_long < −0.5 m/s².
-    /// `regenFactor` (0 gas, ~0.5 hybrid, ~0.65 EV) credits energy recovered by regenerative braking.
     static func brakingEnergyPerKm(_ s: DriveSeries, massKg: Double, regenFactor: Double = 0) -> Double {
         let km = s.totalDistance / 1000
         guard km > 0.01 else { return 0 }
@@ -83,26 +74,21 @@ enum Efficiency {
     }
 }
 
-// MARK: - Scoring model (weights + normalisation), fitted in notebooks/validation.ipynb
-
 struct ScoringModel: Codable, Equatable, Sendable {
     struct Range: Codable, Equatable, Sendable { var p5: Double; var p95: Double }
 
     var version: Int = 1
-    var source: String = "default"                 // "default" | "corpus" | "fitted:<date>"
+    var source: String = "default"
     var weights: [String: Double] = ScoringModel.defaultWeights
     var normalization: [String: Range] = ScoringModel.defaultNormalization
     var safety: SafetyCoefficients = SafetyCoefficients()
     var fitN: Int? = nil
     var fitR2: Double? = nil
 
-    /// Step 3.2 starting weights.
     static let defaultWeights: [String: Double] = [
         "brake_waste": 0.35, "idle_frac": 0.15, "jerk_rms": 0.15, "high_speed": 0.20, "accel_waste": 0.15,
     ]
 
-    /// Prior p5/p95 ranges used until the corpus has ≥ 5 drives (then corpus percentiles take over).
-    /// Brake waste assumes the 1500 kg schema default mass.
     static let defaultNormalization: [String: Range] = [
         "brake_waste": Range(p5: 20_000, p95: 450_000),
         "idle_frac": Range(p5: 0.0, p95: 0.30),
@@ -122,14 +108,12 @@ struct ScoringModel: Codable, Equatable, Sendable {
         return out
     }
 
-    /// score = 100 · (1 − clip(Σ w_k · norm_k, 0, 1))
     func efficiencyScore(_ c: EfficiencyComponents) -> Double {
         let n = normalized(c)
         let penalty = EfficiencyComponents.keys.map { (weights[$0] ?? 0) * (n[$0] ?? 0) }.reduce(0, +)
         return 100 * (1 - Numerics.clip(penalty, 0, 1))
     }
 
-    /// Per-component penalty points (for the breakdown bars): w_k · norm_k · 100.
     func penaltyPoints(_ c: EfficiencyComponents) -> [String: Double] {
         let n = normalized(c)
         var out: [String: Double] = [:]
@@ -137,8 +121,6 @@ struct ScoringModel: Codable, Equatable, Sendable {
         return out
     }
 
-    /// Normalise each component by p5/p95 across the whole drive corpus (Step 3.2) — fixed
-    /// constants don't transfer between cars. Falls back to priors for small corpora.
     func withCorpus(_ corpus: [EfficiencyComponents]) -> ScoringModel {
         guard corpus.count >= ScoringModel.minCorpusForPercentiles, !source.hasPrefix("fitted") else { return self }
         var m = self
@@ -154,12 +136,10 @@ struct ScoringModel: Codable, Equatable, Sendable {
     static let encoder: JSONEncoder = { let e = JSONEncoder(); e.outputFormatting = [.prettyPrinted, .sortedKeys]; return e }()
 }
 
-// MARK: - Safety (Step 5.3)
-
 struct SafetyCoefficients: Codable, Equatable, Sendable {
-    var hardBrake: Double = 12      // per unit severity, per 10 miles
+    var hardBrake: Double = 12
     var tailgatingFraction: Double = 14
-    var harshCorner: Double = 6     // per unit severity, per 10 miles
+    var harshCorner: Double = 6
     var speedingFraction: Double = 15
 
     enum CodingKeys: String, CodingKey {
@@ -187,9 +167,6 @@ struct SafetyBreakdown: Codable, Hashable, Sendable {
 }
 
 enum Safety {
-    /// safety = 100 − 12·Σsev(hard_brake) − 14·tailgating_fraction − 6·Σsev(harsh_corner) − 15·speeding_fraction,
-    /// with event sums normalised per 10 miles (a 40-mile drive isn't automatically worse than a 3-mile one).
-    /// Fractions are of MOVING time. Distances under 1 mile are treated as 1 mile to avoid blow-up.
     static func score(events: [DriveEvent], series s: DriveSeries, coefficients c: SafetyCoefficients = SafetyCoefficients()) -> SafetyBreakdown {
         let miles = max(Units.miles(s.totalDistance), 1.0)
         let factor = 10.0 / miles

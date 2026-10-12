@@ -1,8 +1,3 @@
-//  IntroView.swift — Driveby
-//  First launch: four short pages. Each "Next" morphs the symbol, slides the words, drives the car to
-//  the next stop and then paves the next stretch of road. "Let's drive" takes it to the finish flag.
-//  Swipe left/right works too. Layout follows SwiftUI-Intro "Walkthrough+Morphing" (MIT).
-
 import SwiftUI
 
 enum IntroPage: Int, CaseIterable, Identifiable {
@@ -38,9 +33,7 @@ enum IntroPage: Int, CaseIterable, Identifiable {
     }
 
     private static var count: CGFloat { CGFloat(allCases.count) }
-    /// Where the car waits on this page (fraction of the road).
     var carStop: CGFloat { CGFloat(rawValue) / Self.count }
-    /// Road paved while on this page: up to the next stop, so you can see where you're going.
     var paved: CGFloat { CGFloat(rawValue + 1) / Self.count }
     var next: IntroPage? { IntroPage(rawValue: rawValue + 1) }
     var previous: IntroPage? { IntroPage(rawValue: rawValue - 1) }
@@ -48,6 +41,8 @@ enum IntroPage: Int, CaseIterable, Identifiable {
 }
 
 struct IntroView: View {
+    static let version = 1
+
     var onFinish: () -> Void
 
     @Environment(AppSettings.self) private var settings
@@ -55,11 +50,12 @@ struct IntroView: View {
     @State private var page: IntroPage = .welcome
     @State private var carProgress: CGFloat = IntroPage.welcome.carStop
     @State private var paved: CGFloat = IntroPage.welcome.paved
-    /// The car is mid-drive: ignore taps until it arrives.
     @State private var driving = false
+    @State private var autoplay = true
 
     private static let secondsPerStop = 0.8
     private static let paveDuration = 0.6
+    private static let readingPause = 2.6
     private static let swipeDistance: CGFloat = 40
 
     var body: some View {
@@ -90,16 +86,27 @@ struct IntroView: View {
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 20).onEnded { value in
             if value.translation.width < -Self.swipeDistance, let next = page.next { go(to: next) }
-            if value.translation.width > Self.swipeDistance, let previous = page.previous { go(to: previous) }
+            if value.translation.width > Self.swipeDistance, let previous = page.previous { goBack(to: previous) }
         })
         .sensoryFeedback(.impact(weight: .light), trigger: page)
+        .task(id: page) { await autoAdvance() }
     }
 
-    // MARK: Pieces
+    private func autoAdvance() async {
+        guard autoplay, let next = page.next else { return }
+        try? await Task.sleep(for: .seconds(Self.secondsPerStop + Self.paveDuration + Self.readingPause))
+        guard !Task.isCancelled, autoplay, page.next == next else { return }
+        go(to: next)
+    }
+
+    private func goBack(to previous: IntroPage) {
+        autoplay = false
+        go(to: previous)
+    }
 
     private var header: some View {
         HStack {
-            Button { if let previous = page.previous { go(to: previous) } } label: {
+            Button { if let previous = page.previous { goBack(to: previous) } } label: {
                 Image(systemName: "chevron.left").font(.title3.weight(.semibold)).contentShape(Rectangle())
             }
             .opacity(page.previous == nil ? 0 : 1)
@@ -122,12 +129,11 @@ struct IntroView: View {
         .padding(15)
     }
 
-    /// Titles and subtitles laid side by side and slid under a fixed window (subtitles lag a little).
     private func textContents(width: CGFloat) -> some View {
         VStack(spacing: 8) {
             HStack(alignment: .top, spacing: 0) {
                 ForEach(IntroPage.allCases) { p in
-                    Text(p.title).font(.title2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                    Text(p.title).font(.roadSign(.title)).lineLimit(1).minimumScaleFactor(0.8)
                         .frame(width: width)
                 }
             }
@@ -168,7 +174,7 @@ struct IntroView: View {
             if let next = page.next { go(to: next) } else { finish() }
         } label: {
             Text(page == .last ? "Let's drive" : "Next")
-                .font(.headline)
+                .font(.roadSign(.title3))
                 .contentTransition(.identity)
                 .foregroundStyle(Color(.systemBackground))
                 .padding(.vertical, 15)
@@ -179,9 +185,6 @@ struct IntroView: View {
         .animation(.smooth(duration: 0.5), value: page)
     }
 
-    // MARK: Driving
-
-    /// Morph + slide now; the car drives to the stop; then the next stretch of road is paved.
     private func go(to target: IntroPage) {
         guard !driving, target != page else { return }
         driving = true

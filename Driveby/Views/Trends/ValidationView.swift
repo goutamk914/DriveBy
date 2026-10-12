@@ -1,8 +1,3 @@
-//  ValidationView.swift — Driveby
-//  Phase 3: "I didn't want to invent a number, so I logged every fill-up and checked whether my
-//  score actually predicted MPG." Always shows n next to r² (Step 3.4: overclaiming is the fastest
-//  way to lose a technical judge).
-
 import Charts
 import SwiftUI
 
@@ -46,8 +41,7 @@ struct ValidationView: View {
                 }
                 fitCard(r)
                 Card {
-                    Label("The efficiency score is validated against real fuel consumption. The safety score is not — it's built from established telematics thresholds, and validating it would require crash data we don't have access to.",
-                          systemImage: "checkmark.shield")
+                    Text("The efficiency score is validated against real fuel consumption. The safety score is not — it's built from established telematics thresholds, and validating it would require crash data we don't have access to.")
                         .font(.footnote)
                 }
                 if source == .tank { tankTable }
@@ -64,10 +58,9 @@ struct ValidationView: View {
         return Card {
             SectionHeader(title: "Efficiency score vs. real fuel economy", subtitle: r.source.rawValue)
             if r.points.isEmpty {
-                ContentUnavailableView("No data yet", systemImage: "fuelpump",
-                                       description: Text(source == .tank
+                ContentUnavailableView { Text("No data yet") } description: { Text(source == .tank
                                                          ? "Log every fill-up (fill to the first click). Each full tank becomes one point."
-                                                         : "Connect an OBD-II BLE adapter in Settings — every drive becomes a point."))
+                                                         : "Connect an OBD-II BLE adapter in Settings — every drive becomes a point.") }
             } else {
                 Chart {
                     ForEach(r.points) { p in

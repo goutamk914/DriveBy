@@ -22,7 +22,7 @@ final class VehicleSearchTests: XCTestCase {
         let p = VehicleSearch.parse("hon", years: years, makes: makes)
         XCTAssertNil(p.make)
         XCTAssertEqual(VehicleSearch.matchMakes("hon", makes: makes), ["Honda"])
-        XCTAssertEqual(VehicleSearch.matchMakes("m", makes: makes), ["Mercedes-Benz", "Mini", "Alfa Romeo"])  // prefix first, then substring
+        XCTAssertEqual(VehicleSearch.matchMakes("m", makes: makes), ["Mercedes-Benz", "Mini", "Alfa Romeo"])
         XCTAssertEqual(VehicleSearch.matchMakes("chev", makes: makes).first, "Chevrolet")
         XCTAssertEqual(VehicleSearch.matchMakes("", makes: makes).count, makes.count)
     }

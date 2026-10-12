@@ -1,9 +1,3 @@
-//  ReflectionView.swift — Driveby
-//  Post-drive reflection: opens by itself when a drive has been scored.
-//    Beginner — walks through each moment one at a time, then asks one reflection question.
-//    Advanced — a compact timeline of the significant moments.
-//  Both end with the safety score, what to practise next, and the hours added to the permit log.
-
 import SwiftUI
 
 struct ReflectionView: View {
@@ -24,7 +18,7 @@ struct ReflectionView: View {
                 if let r = drives.record(driveId), let a = drives.analysis(r) {
                     content(r, a)
                 } else {
-                    ContentUnavailableView("Drive not scored yet", systemImage: "hourglass")
+                    ContentUnavailableView { Text("Drive not scored yet") }
                 }
             }
             .navigationTitle("Post-drive reflection")
@@ -78,8 +72,6 @@ struct ReflectionView: View {
         }
     }
 
-    // MARK: Beginner walk-through
-
     private func guided(_ list: [DriveMoment], _ a: DriveAnalysis) -> some View {
         let i = min(step, list.count - 1)
         let m = list[i]
@@ -95,11 +87,11 @@ struct ReflectionView: View {
             }
             Text(m.body)
             if !m.tip.isEmpty {
-                Label(m.tip, systemImage: m.isPositive ? "hand.thumbsup.fill" : "lightbulb.fill")
+                Text(m.tip)
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             Button { selected = m } label: {
-                Label(m.clipPath != nil ? "Watch the clip" : "See the details", systemImage: "play.rectangle.fill")
+                Text(m.clipPath != nil ? "Watch the clip" : "See the details")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -116,14 +108,12 @@ struct ReflectionView: View {
         }
     }
 
-    // MARK: Practice next + hours
-
     private var practiceNext: some View {
         Card {
             SectionHeader(title: "What to practise next", subtitle: "Based on your last 10 drives")
             ForEach(model.practicePlan()) { f in
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(f.title, systemImage: f.skill?.symbol ?? "star.fill").font(.headline)
+                    Text(f.title).font(.headline)
                     Text(f.why).font(.footnote).foregroundStyle(.secondary)
                     if settings.driverMode == .newDriver {
                         ForEach(Array(f.steps.enumerated()), id: \.offset) { n, s in
@@ -143,8 +133,7 @@ struct ReflectionView: View {
         if let e = practiceLog.entry(forDrive: r.id) {
             let h = model.hoursSummary
             Card {
-                Label("Added \(HoursSummary.hoursString(e.durationS)) to your permit log" + (e.nightS >= 60 ? " (\(HoursSummary.hoursString(e.nightS)) at night)" : ""),
-                      systemImage: "clock.badge.checkmark.fill")
+                Text("Added \(HoursSummary.hoursString(e.durationS)) to your permit log" + (e.nightS >= 60 ? " (\(HoursSummary.hoursString(e.nightS)) at night)" : ""))
                     .font(.subheadline.weight(.semibold))
                 Text("Supervisor: \(e.supervisor.isEmpty ? "not set — edit in the Hours tab" : e.supervisor)").font(.caption).foregroundStyle(.secondary)
                 ProgressView(value: min(h.totalHours, max(h.requirement.totalHours, 1)), total: max(h.requirement.totalHours, 1)) {

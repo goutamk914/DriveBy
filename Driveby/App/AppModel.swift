@@ -1,7 +1,3 @@
-//  AppModel.swift — Driveby
-//  Owns the stores and services, runs the post-drive processing queue, and keeps
-//  efficiency scores consistent with the current scoring model + drive corpus.
-
 import Foundation
 import Observation
 import SwiftUI
@@ -17,13 +13,11 @@ final class AppModel {
     let sync: SyncService
     let recorder: RecordingController
 
-    /// Base scoring model (default, imported from the validation notebook, or fitted in-app).
     private(set) var baseModel: ScoringModel
-    /// Base model normalised against this phone's drive corpus (what scores are computed with).
     private(set) var model: ScoringModel
     private(set) var processing: Set<UUID> = []
     var toast: String?
-    /// Drive whose post-drive reflection should open as soon as it's scored.
+    var quickStartPending: Bool
     var reflectionDriveId: UUID?
     @ObservationIgnored private var awaitingReflection: Set<UUID> = []
 
@@ -43,6 +37,7 @@ final class AppModel {
         self.garage = garage
         self.practiceLog = practiceLog
         self.obd = obd
+        self.quickStartPending = settings.onboardingComplete && settings.quickStartOnLaunch
         self.sync = SyncService(drives: drives, garage: garage, practiceLog: practiceLog, settings: settings)
         self.recorder = RecordingController(settings: settings, drives: drives, obd: obd)
         let base = Storage.readJSON(ScoringModel.self, from: Self.modelURL, decoder: JSONDecoder()) ?? ScoringModel()
@@ -56,10 +51,8 @@ final class AppModel {
         recomputeScores()
     }
 
-    /// Called once at launch.
     func bootstrap() async {
         for r in recorder.recoverInterruptedDrives() { enqueue(r.id) }
-        // Drives that finished but were never processed (app killed during processing).
         for r in drives.records where !r.processed && r.processingError == nil && r.endedAt != nil { enqueue(r.id) }
         drives.pruneOldVideos(olderThanDays: settings.keepFullVideoDays)
         if settings.obdEnabled, let id = settings.obdPeripheralId, let uuid = UUID(uuidString: id) { obd.connect(uuid) }
@@ -69,8 +62,6 @@ final class AppModel {
     var activeVehicle: Vehicle? { garage.vehicle(settings.activeVehicleId) ?? garage.vehicles.first }
 
     var pricePerGallon: Double { garage.latestPricePerGallon(vehicleId: activeVehicle?.id) ?? settings.defaultFuelPrice }
-
-    // MARK: Processing queue
 
     func enqueue(_ id: UUID) {
         guard !queue.contains(id), !processing.contains(id) else { return }
@@ -139,8 +130,6 @@ final class AppModel {
         if sync.isSignedIn { await sync.syncNow() }
     }
 
-    // MARK: Supervised-hours log
-
     private func logPracticeHours(record r: DriveRecord, analysis a: DriveAnalysis, supervisor: String?) {
         guard practiceLog.entry(forDrive: r.id) == nil, !practiceLog.removedDrives.contains(r.id), a.durationS >= 60 else { return }
         let start = r.startedAt.addingTimeInterval(a.tripStartT)
@@ -154,9 +143,6 @@ final class AppModel {
 
     var hoursSummary: HoursSummary { practiceLog.summary(settings.hoursRequirement) }
 
-    // MARK: Skills + what to practise next
-
-    /// Skills combined over the most recent `lastDrives` scored drives.
     func combinedSkills(lastDrives: Int = 10) -> SkillReport {
         SkillReport.combine(drives.processed.prefix(lastDrives).compactMap { drives.analysis($0)?.skills })
     }
@@ -173,9 +159,6 @@ final class AppModel {
         drives.update(rec)
     }
 
-    // MARK: Scoring model
-
-    /// Re-normalise against the corpus and refresh every drive's efficiency score.
     func recomputeScores() {
         let corpus = drives.processed.compactMap(\.components)
         model = baseModel.withCorpus(corpus)
@@ -211,8 +194,6 @@ final class AppModel {
         recomputeScores()
     }
 
-    // MARK: Validation inputs
-
     func validationDrives(vehicleId: UUID?) -> [DriveForValidation] {
         drives.processed.compactMap { r in
             guard let c = r.components, let miles = r.miles, vehicleId == nil || r.vehicleId == vehicleId else { return nil }
@@ -220,8 +201,6 @@ final class AppModel {
                                       components: c, obdFuelGal: r.fuelGal)
         }
     }
-
-    // MARK: Hazard map (your own contributions — private, local)
 
     func localHazardCells() -> [LocalHazardCell] {
         var contributions: [HazardAggregator.Contribution] = []
@@ -234,8 +213,6 @@ final class AppModel {
         }
         return HazardAggregator.localCells(contributions)
     }
-
-    // MARK: Data management
 
     func deleteDrive(_ r: DriveRecord) {
         drives.delete(r)

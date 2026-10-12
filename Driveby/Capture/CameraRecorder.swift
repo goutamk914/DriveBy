@@ -1,12 +1,3 @@
-//  CameraRecorder.swift — Driveby
-//  Decision 1: the phone IS the dashcam. Camera frames and motion samples share one
-//  system clock, so the frame at t = 12.400 s and the accelerometer sample at t = 12.400 s
-//  are the same moment — no cross-device clock drift to solve.
-//
-//  720p @ 30 fps (we analyse at ≤15 Hz anyway; bigger files slow everything downstream),
-//  stabilisation OFF (it crops and changes the focal length the distance estimate relies on),
-//  no audio (in-car conversations are nobody's business).
-
 import AVFoundation
 import Foundation
 import simd
@@ -44,7 +35,6 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     private var configured = false
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
 
-    // videoQueue-confined recording state
     private var writer: RedactingVideoWriter?
     private var sensorWriter: SampleFileWriter?
     private var t0: TimeInterval = 0
@@ -55,10 +45,8 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     private var lastLeadUIUpdate: TimeInterval = 0
     let redactor = Redactor()
 
-    /// Main-thread callbacks for the HUD.
     var onInterrupted: ((String) -> Void)?
     var onLiveStats: ((_ faces: Int, _ vehicles: Int, _ plates: Int, _ leadDistance: Double?) -> Void)?
-    /// First redacted frame is on disk: video_start_t, focal length and size are now known.
     var onVideoStarted: ((_ videoStartT: Double, _ focalPx: Double?, _ width: Int, _ height: Int) -> Void)?
 
     static var authorization: AVAuthorizationStatus { AVCaptureDevice.authorizationStatus(for: .video) }
@@ -75,9 +63,6 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
 
     deinit { NotificationCenter.default.removeObserver(self) }
 
-    // MARK: Session
-
-    /// Configure (once) and start the capture session — preview runs, nothing is written.
     func startSession(completion: @escaping (Error?) -> Void) {
         sessionQueue.async {
             do {
@@ -100,7 +85,6 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         do {
             try configureSession()
         } catch {
-            // Leave the session clean so a later attempt (e.g. after granting permission) can succeed.
             session.beginConfiguration()
             session.inputs.forEach { session.removeInput($0) }
             session.outputs.forEach { session.removeOutput($0) }
@@ -145,20 +129,16 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         configured = true
     }
 
-    /// Horizon-level rotation for the current physical orientation, locked for the whole drive.
     private func applyCaptureRotation() {
         guard let conn = output.connection(with: .video), let rc = rotationCoordinator else { return }
         let angle = rc.videoRotationAngleForHorizonLevelCapture
         if conn.isVideoRotationAngleSupported(angle) { conn.videoRotationAngle = angle }
     }
 
-    /// Fallback focal length from the format's horizontal field of view (only if intrinsics are unavailable).
     private func fovFocal(width: Int) -> Double? {
         guard let fov = device?.activeFormat.videoFieldOfView, fov > 1 else { return nil }
         return Double(width) / 2 / tan(Double(fov) * .pi / 360)
     }
-
-    // MARK: Recording
 
     func beginRecording(url: URL, t0: TimeInterval, sensorWriter: SampleFileWriter, detectionHz: Double, focalOverride: Double) {
         sessionQueue.async {
@@ -177,7 +157,6 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
     }
 
-    /// Stop writing and finalise the file. Completion on the main queue.
     func endRecording(completion: @escaping (Summary) -> Void) {
         sessionQueue.async {
             self.videoQueue.async {
@@ -196,7 +175,6 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
     }
 
-    /// Camera stopped mid-drive (phone locked, call, overheating). Sensors keep recording.
     private func interrupt(reason: String) {
         videoQueue.async {
             guard let w = self.writer, !self.interrupted else { return }
@@ -220,12 +198,10 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
     }
 
-    // MARK: AVCaptureVideoDataOutputSampleBufferDelegate (videoQueue)
-
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let w = writer, !interrupted else { return }
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        let t = CMTimeGetSeconds(pts) - t0        // capture PTS is on the host (mach) clock = our sensor clock
+        let t = CMTimeGetSeconds(pts) - t0
         guard t >= 0 else { return }
 
         if focalPx == nil, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) {

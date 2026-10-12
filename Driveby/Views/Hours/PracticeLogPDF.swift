@@ -1,8 +1,3 @@
-//  PracticeLogPDF.swift — Driveby
-//  Printable supervised-driving log (US Letter). Lists every session with date, time, duration, night
-//  minutes and supervisor, the running totals against the requirement, and blank signature lines.
-//  It is a personal record to help fill in the official form — not the official form itself.
-
 import UIKit
 
 enum PracticeLogPDF {
@@ -26,7 +21,6 @@ enum PracticeLogPDF {
         let timeF = DateFormatter(); timeF.dateStyle = .none; timeF.timeStyle = .short
         let sorted = entries.sorted { $0.startedAt < $1.startedAt }
 
-        // Columns: #, Date, Start, Duration, Night, Supervisor, Source
         let cols: [(String, CGFloat)] = [("#", 24), ("Date", 92), ("Start", 60), ("Duration", 64), ("Night", 56),
                                          ("Supervisor", 140), ("Source", 80)]
 
@@ -78,7 +72,6 @@ enum PracticeLogPDF {
                 y += 16
             }
 
-            // Totals + signatures
             if y > page.height - margin - 150 { newPage() }
             y += 10
             ctx.cgContext.stroke(CGRect(x: margin, y: y, width: page.width - 2 * margin, height: 0.5))
