@@ -1,0 +1,12 @@
+# Python 3.11+  —  pip install -r processor/requirements.txt
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+matplotlib>=3.8
+requests>=2.31
+opencv-python>=4.9
+ultralytics>=8.3          # YOLOv8 (AGPL-3.0) — blur + following distance
+supabase>=2.4             # optional: processor/sync.py
+obd>=0.7.2                # optional: tools/obd_check.py (python-OBD)
+pytest>=8                 # tests
+jupyter>=1.0              # notebooks/validation.ipynb

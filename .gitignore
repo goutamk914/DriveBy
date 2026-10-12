@@ -1,0 +1,28 @@
+# Do not commit driving footage or raw drives (Build Guide, Day 2)
+data/
+*.mp4
+*.mov
+*.jsonl
+!Tests/DrivebyCoreTests/Fixtures/**/*.jsonl
+notebooks/out/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+.build/
+.swiftpm/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+*.pt
+!processor/**/*.pt
+
+# Secrets — the anon key is public by design, but keep local overrides out of git
+Driveby/Resources/Config.local.plist
+.env
+.DS_Store

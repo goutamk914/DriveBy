@@ -1,0 +1,10 @@
+{
+  "drive_id": "00000000-0000-0000-0000-000000000007",
+  "video_file": null,
+  "sensor_file": "sensors.jsonl",
+  "video_start_t": null,
+  "vehicle_id": null,
+  "device": "synthetic",
+  "started_at": "2026-09-14T16:00:00Z",
+  "recording_mode": "sensors"
+}

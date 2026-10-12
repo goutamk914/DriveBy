@@ -1,0 +1,41 @@
+{
+  "fitN": 9,
+  "fitR2": 0.71,
+  "normalization": {
+    "accel_waste": {
+      "p5": 0.0,
+      "p95": 0.08
+    },
+    "brake_waste": {
+      "p5": 20000.0,
+      "p95": 450000.0
+    },
+    "high_speed": {
+      "p5": 0.0,
+      "p95": 0.6
+    },
+    "idle_frac": {
+      "p5": 0.0,
+      "p95": 0.3
+    },
+    "jerk_rms": {
+      "p5": 0.15,
+      "p95": 1.2
+    }
+  },
+  "safety": {
+    "hard_brake": 12.0,
+    "harsh_corner": 6.0,
+    "speeding_fraction": 15.0,
+    "tailgating_fraction": 14.0
+  },
+  "source": "fitted:2026-10-01",
+  "version": 1,
+  "weights": {
+    "accel_waste": 0.1,
+    "brake_waste": 0.5,
+    "high_speed": 0.2,
+    "idle_frac": 0.1,
+    "jerk_rms": 0.1
+  }
+}

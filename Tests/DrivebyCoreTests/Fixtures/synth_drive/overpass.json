@@ -1,0 +1,74 @@
+{
+ "version": 0.6,
+ "elements": [
+  {
+   "type": "way",
+   "id": 101,
+   "tags": {
+    "highway": "primary",
+    "maxspeed": "35 mph",
+    "ref": "VA 7",
+    "name": "Harry Byrd Highway"
+   },
+   "geometry": [
+    {
+     "lat": 39.04,
+     "lon": -77.49199999999999
+    },
+    {
+     "lat": 39.04,
+     "lon": -77.4734615
+    }
+   ]
+  },
+  {
+   "type": "way",
+   "id": 102,
+   "tags": {
+    "highway": "secondary",
+    "name": "Belmont Ridge Road"
+   },
+   "geometry": [
+    {
+     "lat": 39.04,
+     "lon": -77.4734615
+    },
+    {
+     "lat": 39.0401076,
+     "lon": -77.4731308
+    },
+    {
+     "lat": 39.0403662,
+     "lon": -77.4729937
+    },
+    {
+     "lat": 39.0403662,
+     "lon": -77.4729937
+    },
+    {
+     "lat": 39.073527344797185,
+     "lon": -77.47299366774024
+    }
+   ]
+  },
+  {
+   "type": "way",
+   "id": 103,
+   "tags": {
+    "highway": "residential",
+    "name": "Cedar Lane",
+    "maxspeed": "25 mph"
+   },
+   "geometry": [
+    {
+     "lat": 39.038,
+     "lon": -77.48027394286203
+    },
+    {
+     "lat": 39.042,
+     "lon": -77.48027394286203
+    }
+   ]
+  }
+ ]
+}
