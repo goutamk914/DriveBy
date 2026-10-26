@@ -101,6 +101,7 @@ final class Redactor {
             guard let top = obj.labels.first, top.confidence >= 0.3 else { continue }
             let b = obj.boundingBox
             if Self.vehicleLabels.contains(top.identifier) {
+                if Thresholds.isOwnHood(minY: Double(b.minY), width: Double(b.width)) { continue }
                 result.vehicleCount += 1
                 rects.append(CGRect(x: b.minX + 0.15 * b.width, y: b.minY, width: 0.7 * b.width, height: 0.55 * b.height))
                 if Self.leadLabels.contains(top.identifier), top.confidence >= 0.35, abs(Double(b.midX) - 0.5) <= 0.15 {

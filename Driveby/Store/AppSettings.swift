@@ -23,6 +23,7 @@ final class AppSettings {
     var voiceCoach: Bool { didSet { d.set(voiceCoach, forKey: "voiceCoach") } }
     var quickStartOnLaunch: Bool { didSet { d.set(quickStartOnLaunch, forKey: "quickStartOnLaunch") } }
     var introSeenVersion: Int { didSet { d.set(introSeenVersion, forKey: "introSeenVersion") } }
+    var demoProfile: DemoProfile? { didSet { d.set(demoProfile?.rawValue, forKey: "demoProfile") } }
     var safetyRulesAcceptedAt: Date? { didSet { d.set(safetyRulesAcceptedAt, forKey: "safetyRulesAcceptedAt") } }
     var activeVehicleId: UUID? { didSet { d.set(activeVehicleId?.uuidString, forKey: "activeVehicleId") } }
 
@@ -50,6 +51,7 @@ final class AppSettings {
     var googleMapsKeyOverride: String { didSet { d.set(googleMapsKeyOverride, forKey: "googleMapsKeyOverride") } }
 
     var isNewDriver: Bool { driverMode == .newDriver }
+    var isDemo: Bool { demoProfile != nil }
 
     var hoursRequirement: HoursRequirement {
         HoursRequirement(totalHours: hoursTotalTarget, nightHours: hoursNightTarget,
@@ -72,6 +74,7 @@ final class AppSettings {
         voiceCoach = d.bool(forKey: "voiceCoach")
         quickStartOnLaunch = d.bool(forKey: "quickStartOnLaunch")
         introSeenVersion = d.integer(forKey: "introSeenVersion")
+        demoProfile = d.string(forKey: "demoProfile").flatMap(DemoProfile.init(rawValue:))
         safetyRulesAcceptedAt = d.object(forKey: "safetyRulesAcceptedAt") as? Date
         activeVehicleId = d.string(forKey: "activeVehicleId").flatMap(UUID.init(uuidString:))
         recordVideo = d.bool(forKey: "recordVideo")
@@ -103,6 +106,7 @@ final class AppSettings {
         voiceCoach = d.bool(forKey: "voiceCoach")
         quickStartOnLaunch = d.bool(forKey: "quickStartOnLaunch")
         introSeenVersion = d.integer(forKey: "introSeenVersion")
+        demoProfile = d.string(forKey: "demoProfile").flatMap(DemoProfile.init(rawValue:))
         safetyRulesAcceptedAt = d.object(forKey: "safetyRulesAcceptedAt") as? Date
         activeVehicleId = d.string(forKey: "activeVehicleId").flatMap(UUID.init(uuidString:))
         recordVideo = d.bool(forKey: "recordVideo")

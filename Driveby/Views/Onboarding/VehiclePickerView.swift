@@ -40,7 +40,7 @@ struct VehiclePickerView: View {
                 Section {
                     Button("Can't find it? Enter my car manually") { manual = true }
                 } footer: {
-                    Text("Ratings come from the U.S. EPA (fueleconomy.gov).")
+                    Text("Ratings from fueleconomy.gov.")
                 }
             }
         }
@@ -81,7 +81,7 @@ struct VehiclePickerView: View {
         } header: {
             Text("1 · Model year")
         } footer: {
-            if year == nil { Text("Pick your car's year, or just type it in the search, e.g. \"2019 Honda Civic\".") }
+            if year == nil { Text("Or type it in the search.") }
         }
     }
 
@@ -117,7 +117,7 @@ struct VehiclePickerView: View {
             let items = hits.compactMap { t in all.first { $0.text == t } }
             Section {
                 if items.isEmpty && !loading && modelsByMake[make] != nil {
-                    Text("No \(make) models match \"\(p.rest.joined(separator: " "))\" for \(year ?? ""). Check the spelling or the year.")
+                    Text("No \(make) models match \"\(p.rest.joined(separator: " "))\".")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 ForEach(items.prefix(60)) { m in
@@ -130,7 +130,7 @@ struct VehiclePickerView: View {
             let hits = VehicleSearch.matchMakes(p.rest.joined(separator: " "), makes: makes.map(\.value))
             Section {
                 if hits.isEmpty && !makes.isEmpty {
-                    Text("No make matches \"\(query.trimmingCharacters(in: .whitespaces))\". Start with the brand, e.g. Toyota Camry.")
+                    Text("No make matches \"\(query.trimmingCharacters(in: .whitespaces))\".")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 ForEach(hits.prefix(80), id: \.self) { make in
@@ -162,7 +162,7 @@ struct VehiclePickerView: View {
             }
             Button("Change car") { chosen = nil; options = [] }
         } header: {
-            Text("3 · Engine / trim — \(year ?? "") \(c.make) \(c.model.text)")
+            Text("3 · Engine / trim: \(year ?? "") \(c.make) \(c.model.text)")
         }
     }
 

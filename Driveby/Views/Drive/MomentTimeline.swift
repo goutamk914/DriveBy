@@ -7,7 +7,7 @@ struct MomentTimeline: View {
 
     var body: some View {
         if moments.isEmpty {
-            Text("Nothing significant to review — nice, steady drive.")
+            Text("Nothing to review. Nice, steady drive.")
                 .foregroundStyle(Theme.efficiency)
         } else {
             VStack(alignment: .leading, spacing: 0) {

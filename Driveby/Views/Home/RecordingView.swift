@@ -1,3 +1,4 @@
+import AVFoundation
 import Combine
 import SwiftUI
 
@@ -12,7 +13,10 @@ struct RecordingView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if recorder.mode == .camera && (recorder.phase == .recording || recorder.phase == .armed) {
+            if let clip = recorder.demoClip {
+                DemoClipLayer(player: clip.player, leadRect: recorder.leadRect, leadDistance: recorder.leadDistance)
+                    .ignoresSafeArea()
+            } else if recorder.mode == .camera && (recorder.phase == .recording || recorder.phase == .armed) {
                 CameraPreview(session: recorder.camera.session)
                     .ignoresSafeArea()
                     .opacity(recorder.moving ? 0.25 : 0.85)
@@ -44,7 +48,7 @@ struct RecordingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 switch recorder.phase {
                 case .armed:
-                    Text("Armed — waiting for the car to move").font(.headline)
+                    Text("Armed, waiting for the car to move").font(.headline)
                 case .finishing:
                     Text("Saving drive…").font(.headline)
                 default:
@@ -56,6 +60,7 @@ struct RecordingView: View {
             VStack(alignment: .trailing, spacing: 8) {
                 if settings.voiceCoach && recorder.phase == .recording { voiceToggle }
                 if recorder.mode == .camera && recorder.phase == .recording { privacyBadge }
+                if recorder.demoClip != nil { demoBadge }
             }
         }
         .foregroundStyle(.white)
@@ -94,6 +99,15 @@ struct RecordingView: View {
         .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
     }
 
+    private var demoBadge: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text("Demo clip").font(.caption.weight(.semibold))
+            Text("Real video · scripted speed").font(.caption2).opacity(0.8)
+        }
+        .padding(8)
+        .background(Color.orange.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
+    }
+
     private var visibleCue: LiveCueEvent? {
         _ = now
         guard let cue = recorder.lastCue else { return nil }
@@ -108,7 +122,7 @@ struct RecordingView: View {
                     CueBanner(event: cue).transition(.scale.combined(with: .opacity))
                 }
                 speedometer
-                Text(settings.voiceCoach ? "Eyes on the road — Driveby will speak up." : "Eyes on the road.")
+                Text(settings.voiceCoach ? "Eyes on the road. Driveby will speak up." : "Eyes on the road.")
                     .font(.subheadline).opacity(0.8)
             }
             .foregroundStyle(.white)
@@ -129,7 +143,7 @@ struct RecordingView: View {
         case .armed:
             VStack(spacing: 8) {
                 ProgressView().tint(.white)
-                Text("Recording starts on its own once you've been moving for 10 seconds.")
+                Text("Starts once you're moving.")
                     .font(.subheadline).multilineTextAlignment(.center).foregroundStyle(Color.white.opacity(0.8))
             }
         default:
@@ -173,6 +187,68 @@ struct RecordingView: View {
         default:
             EmptyView()
         }
+    }
+}
+
+private struct DemoClipLayer: View {
+    let player: AVPlayer
+    var leadRect: CGRect?
+    var leadDistance: Double?
+    private static let aspect: CGFloat = 16 / 9
+    private static let feetPerMetre = 3.28084
+
+    var body: some View {
+        GeometryReader { geo in
+            let frame = Self.fitted(in: geo.size)
+            ZStack(alignment: .topLeading) {
+                PlayerLayerView(player: player)
+                if let r = leadRect {
+                    let box = CGRect(x: frame.minX + r.minX * frame.width, y: frame.minY + r.minY * frame.height,
+                                     width: r.width * frame.width, height: r.height * frame.height)
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.yellow, lineWidth: 3)
+                        .frame(width: box.width, height: box.height)
+                        .offset(x: box.minX, y: box.minY)
+                    if let d = leadDistance {
+                        Text(String(format: "%.0f ft", d * Self.feetPerMetre))
+                            .font(.caption.weight(.bold)).monospacedDigit()
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color.yellow, in: Capsule())
+                            .foregroundStyle(.black)
+                            .offset(x: box.minX, y: max(box.minY - 24, frame.minY))
+                    }
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: leadRect)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private static func fitted(in size: CGSize) -> CGRect {
+        let width = min(size.width, size.height * aspect)
+        let height = width / aspect
+        return CGRect(x: (size.width - width) / 2, y: (size.height - height) / 2, width: width, height: height)
+    }
+}
+
+private struct PlayerLayerView: UIViewRepresentable {
+    let player: AVPlayer
+
+    final class LayerView: UIView {
+        override class var layerClass: AnyClass { AVPlayerLayer.self }
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    }
+
+    func makeUIView(context: Context) -> LayerView {
+        let v = LayerView()
+        v.playerLayer.player = player
+        v.playerLayer.videoGravity = .resizeAspect
+        v.backgroundColor = .black
+        return v
+    }
+
+    func updateUIView(_ v: LayerView, context: Context) {
+        if v.playerLayer.player !== player { v.playerLayer.player = player }
     }
 }
 

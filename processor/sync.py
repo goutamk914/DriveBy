@@ -1,11 +1,3 @@
-"""Upload drives processed on the laptop (e.g. imported dashcam footage) to Supabase — derived data only.
-
-    export SUPABASE_URL=https://xxxx.supabase.co SUPABASE_ANON_KEY=...   # anon key, never service_role
-    python -m processor.sync data/drive_0007 --email you@example.com
-
-Uses the same tables and row-level security as the app; you sign in as yourself.
-Raw video and sensors.jsonl are NEVER uploaded.
-"""
 from __future__ import annotations
 
 import argparse

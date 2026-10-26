@@ -62,7 +62,7 @@ struct DriveDetailView: View {
         .confirmationDialog("Delete this drive?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete drive", role: .destructive) { model.deleteDrive(r); dismiss() }
         } message: {
-            Text("Removes the video, clips, sensor log and scores from this phone (and from your cloud account if synced).")
+            Text("Removes this drive here and from the cloud.")
         }
     }
 
@@ -115,10 +115,10 @@ struct DriveDetailView: View {
         Card {
             HStack(alignment: .top) {
                 ScoreRing(title: "Efficiency", score: r.efficiencyScore, tint: Theme.efficiency,
-                          caption: "Validated against real fuel data — see Trends")
+                          caption: "Validated with fuel data")
                     .frame(maxWidth: .infinity)
                 ScoreRing(title: "Safety", score: a.safety.score, tint: Theme.safety,
-                          caption: "Built from telematics thresholds — not validated (no crash data)")
+                          caption: "Not validated")
                     .frame(maxWidth: .infinity)
             }
             if let mpg = a.obdMPG {
@@ -137,8 +137,8 @@ struct DriveDetailView: View {
         Card {
             HStack {
                 SectionHeader(title: "Timeline",
-                              subtitle: settings.driverMode == .newDriver ? "Good moments and things to work on — tap any to replay it"
-                                                                         : "Significant issues only (Advanced mode)")
+                              subtitle: settings.driverMode == .newDriver ? "Tap any moment to replay it"
+                                                                         : "Significant issues only")
                 Spacer()
             }
             MomentTimeline(moments: visibleMoments(a), tripStartT: a.tripStartT) { selectedMoment = $0 }
@@ -162,7 +162,7 @@ struct DriveDetailView: View {
         let points = model.model.penaltyPoints(a.components)
         let norm = model.model.normalized(a.components)
         return Card {
-            SectionHeader(title: "Efficiency breakdown", subtitle: "Points lost per component (weights: \(model.model.source))")
+            SectionHeader(title: "Efficiency breakdown", subtitle: "Points lost")
             ForEach(EfficiencyComponents.keys, id: \.self) { k in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -175,7 +175,7 @@ struct DriveDetailView: View {
                 }
             }
             Divider()
-            SectionHeader(title: "Safety breakdown", subtitle: "Event points are per 10 miles so long drives aren't penalised for length")
+            SectionHeader(title: "Safety breakdown", subtitle: "Points lost per 10 miles")
             InfoRow(label: "Hard braking", value: String(format: "−%.1f", a.safety.hardBrakePoints))
             InfoRow(label: "Sharp turns", value: String(format: "−%.1f", a.safety.harshCornerPoints))
             InfoRow(label: "Speeding (\(Int((a.safety.speedingFraction * 100).rounded()))% of moving time)", value: String(format: "−%.1f", a.safety.speedingPoints))
@@ -191,16 +191,16 @@ struct DriveDetailView: View {
     private func noteItems(_ r: DriveRecord, _ a: DriveAnalysis) -> [Note] {
         var items: [Note] = []
         if !a.speedLimitsAvailable {
-            items.append(Note(text: "Speed limits weren't available when this drive was scored, so speeding wasn't checked."))
+            items.append(Note(text: "No speed limits, so speeding wasn't checked."))
         }
         if drives.sidecar(r)?.videoInterrupted == true {
-            items.append(Note(text: "The camera stopped part-way (phone locked, call or heat). Sensors kept recording; later events have no clip."))
+            items.append(Note(text: "Camera stopped part-way. Later events have no clip."))
         }
         if !a.tailgatingAvailable && r.hasVideo {
-            items.append(Note(text: "No vehicles were detected ahead, so following distance couldn't be measured."))
+            items.append(Note(text: "No cars ahead, so following distance wasn't measured."))
         }
         if a.malformedLines > 0 {
-            items.append(Note(text: "\(a.malformedLines) damaged sensor line(s) were skipped (e.g. the phone shut down mid-write)."))
+            items.append(Note(text: "\(a.malformedLines) damaged sensor line(s) skipped."))
         }
         return items
     }
@@ -224,7 +224,7 @@ struct DriveDetailView: View {
         Card {
             if r.hasVideo, drives.videoURL(r) != nil {
                 NavigationLink { PrivacyAuditView(record: r) } label: {
-                    Text("Privacy spot-check (20 random frames)")
+                    Text("Privacy spot-check")
                 }
             }
             if let url = exportURL {
@@ -238,7 +238,7 @@ struct DriveDetailView: View {
                     }
                 } label: {
                     HStack {
-                        Text("Export raw data for the Python processor")
+                        Text("Export raw data")
                         if exporting { Spacer(); ProgressView() }
                     }
                 }

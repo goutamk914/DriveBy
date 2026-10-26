@@ -78,7 +78,7 @@ final class SyncService {
     }
 
     func syncNow() async {
-        guard let client, let uid = client.session?.userId else { return }
+        guard !settings.isDemo, let client, let uid = client.session?.userId else { return }
         if status == .syncing { return }
         status = .syncing
         do {
@@ -177,7 +177,7 @@ final class SyncService {
             await refreshHazardCells()
         } catch SupabaseError.notSignedIn {
             signedInEmail = nil
-            status = .failed("Signed out — sign in again to sync.")
+            status = .failed("Signed out. Sign in again to sync.")
         } catch {
             status = .failed(error.localizedDescription)
         }

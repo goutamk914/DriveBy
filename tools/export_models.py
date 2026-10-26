@@ -1,14 +1,3 @@
-"""Export the Core ML models the app bundles (Driveby/MLModels/). Run on macOS or Linux.
-
-    pip install ultralytics coremltools
-    python tools/export_models.py                     # yolov8n (COCO) — vehicles + people
-    python tools/export_models.py --plate my_plates.pt  # optional dedicated licence-plate detector
-
-`nms=True` produces a pipeline model Vision understands (VNRecognizedObjectObservation). Drop the
-resulting .mlpackage into Driveby/MLModels/ — Xcode compiles it automatically; the app picks up
-`plate_detector.mlpackage` by name and stops using the plate-zone heuristic.
-Note: Ultralytics YOLO models are AGPL-3.0 — document this in the submission (it is, in AboutView).
-"""
 import argparse
 import shutil
 from pathlib import Path

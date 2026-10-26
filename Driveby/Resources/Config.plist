@@ -2,15 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Supabase project (Settings → API in the Supabase dashboard). Leave empty for local-only mode.
-	     The anon key is PUBLIC by design; row-level security (db/schema.sql) protects the data.
-	     Never put the service_role key in the app. -->
 	<key>SUPABASE_URL</key>
 	<string></string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string></string>
-	<!-- Google Maps Platform key (optional). Enable "Roads API" and "Geocoding API", then restrict the key to
-	     iOS apps with this bundle id and to those two APIs. Leave empty: Google Maps / Street View links still work. -->
 	<key>GOOGLE_MAPS_API_KEY</key>
 	<string></string>
 </dict>

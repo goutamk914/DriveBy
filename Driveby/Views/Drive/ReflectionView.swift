@@ -135,7 +135,7 @@ struct ReflectionView: View {
             Card {
                 Text("Added \(HoursSummary.hoursString(e.durationS)) to your permit log" + (e.nightS >= 60 ? " (\(HoursSummary.hoursString(e.nightS)) at night)" : ""))
                     .font(.subheadline.weight(.semibold))
-                Text("Supervisor: \(e.supervisor.isEmpty ? "not set — edit in the Hours tab" : e.supervisor)").font(.caption).foregroundStyle(.secondary)
+                Text("Supervisor: \(e.supervisor.isEmpty ? "not set" : e.supervisor)").font(.caption).foregroundStyle(.secondary)
                 ProgressView(value: min(h.totalHours, max(h.requirement.totalHours, 1)), total: max(h.requirement.totalHours, 1)) {
                     Text(String(format: "%.1f of %.0f hours · %.1f of %.0f night hours", h.totalHours, h.requirement.totalHours,
                                 h.nightHours, h.requirement.nightHours)).font(.caption)
@@ -146,7 +146,7 @@ struct ReflectionView: View {
 
     private func reflectionQuestion(_ r: DriveRecord) -> some View {
         Card {
-            SectionHeader(title: "Your turn", subtitle: "One thing you'll do differently next drive (saved in your log)")
+            SectionHeader(title: "Your turn", subtitle: "One thing to do differently next time")
             TextField("e.g. Start braking earlier for stop signs", text: $note, axis: .vertical)
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)

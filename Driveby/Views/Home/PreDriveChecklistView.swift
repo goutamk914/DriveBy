@@ -12,15 +12,15 @@ struct PreDriveChecklistView: View {
 
     private var items: [Item] {
         var list = [Item(id: "Phone mounted, level, not blocking your view",
-                         detail: "Landscape, centred behind the mirror. Don't touch it again until you park.")]
+                         detail: "Don't touch it until you park.")]
         if settings.driverMode == .newDriver {
             list = [
-                Item(id: "Seat and mirrors adjusted", detail: "You can reach the pedals fully and see out of all three mirrors."),
+                Item(id: "Seat and mirrors adjusted", detail: "Reach the pedals, see all mirrors."),
                 Item(id: "Everyone's seatbelt is on", detail: "Driver and every passenger."),
             ] + list + [
                 Item(id: "Phone on Do Not Disturb (Driving Focus)", detail: "No notifications while you drive."),
-                Item(id: "Route talked through with your supervisor", detail: "Know where you're going before you shift into drive."),
-                Item(id: "I won't touch the phone while the car is moving", detail: "Your supervisor stops the recording after you park."),
+                Item(id: "Route talked through with your supervisor", detail: "Know where you're going."),
+                Item(id: "I won't touch the phone while the car is moving", detail: "Your supervisor stops the recording."),
             ]
         }
         return list
@@ -42,10 +42,10 @@ struct PreDriveChecklistView: View {
                     TextField("Supervisor's name", text: $supervisor)
                         .textContentType(.name)
                     Toggle(isOn: $supervisorPresent) {
-                        Text("A licensed adult is in the front passenger seat and paying attention")
+                        Text("A licensed adult is in the passenger seat")
                     }
                 } header: { Text("Supervising driver (required)") } footer: {
-                    Text("Virginia learner's permit: a licensed driver 21 or older, a parent or legal guardian, or a licensed sibling 18 or older. Their name goes in your hours log.")
+                    Text("Licensed driver 21+, parent or guardian, or licensed sibling 18+.")
                 }
                 Section(settings.driverMode == .newDriver ? "Before you drive" : "Quick check") {
                     ForEach(items) { item in
@@ -77,8 +77,7 @@ struct PreDriveChecklistView: View {
                     }
                     .disabled(!ready)
                 } footer: {
-                    Text(ready ? "Driveby speaks short tips while you drive; the full walk-through is ready when you park."
-                               : "Confirm your supervisor and tick every item to start.")
+                    Text(ready ? "All set." : "Add your supervisor and tick every item.")
                 }
             }
             .navigationTitle("Ready to practise?")

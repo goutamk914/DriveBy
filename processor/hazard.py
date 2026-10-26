@@ -1,9 +1,3 @@
-"""Phase 7 — anonymised district hazard map with k-anonymity.
-
-A cell (≈55 m) is published ONLY when it has ≥ 5 events from ≥ 3 distinct drivers, and the
-published row stores counts — never user IDs, never timestamps precise enough to re-identify a trip.
-Same cell key as Driveby/Core/Hazard.swift and publish_hazard_cells() in db/schema.sql.
-"""
 from __future__ import annotations
 
 import json
@@ -12,9 +6,9 @@ from datetime import datetime, timezone
 
 from . import contract as C
 
-CELL = C.CELL           # ≈ 55 m at this latitude
-K_EVENTS = C.K_EVENTS   # minimum events before a cell is published
-K_USERS = C.K_USERS     # minimum distinct contributors
+CELL = C.CELL
+K_EVENTS = C.K_EVENTS
+K_USERS = C.K_USERS
 
 
 def cell_key(lat, lon):
@@ -26,7 +20,6 @@ def cell_center(lat, lon):
 
 
 def aggregate(contributions, k_events=K_EVENTS, k_users=K_USERS):
-    """contributions: iterable of dicts {lat, lon, kind, user} (user only used for counting)."""
     events, users, kinds, centers = Counter(), defaultdict(set), defaultdict(Counter), {}
     for c in contributions:
         if c["kind"] not in C.HAZARD_KINDS:
@@ -48,7 +41,6 @@ def aggregate(contributions, k_events=K_EVENTS, k_users=K_USERS):
 
 
 def to_geojson(cells, cell=CELL) -> dict:
-    """The 'here's what we'd hand to VDOT' artifact: square cells, counts only."""
     h = cell / 2
     feats = []
     for c in cells:

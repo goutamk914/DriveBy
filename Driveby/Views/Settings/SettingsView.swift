@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State private var error: String?
     @State private var showNewDriverSetup = false
     @State private var importPaperLog = false
+    @State private var pendingDemo: DemoProfile?
+    @State private var confirmExitDemo = false
 
     private var newDriverToggle: Binding<Bool> {
         Binding(get: { settings.isNewDriver },
@@ -74,9 +76,7 @@ struct SettingsView: View {
                     }
                     NavigationLink { MountCheckView() } label: { Text("Mount check") }
                     NavigationLink { CalibrationView() } label: { Text("Camera calibration") }
-                } header: { Text("Recording") } footer: {
-                    Text("Higher detection rates blur and measure following distance more often but make the phone warmer.")
-                }
+                } header: { Text("Recording") }
                 Section {
                     Toggle("Use OBD-II adapter", isOn: $settings.obdEnabled)
                     if settings.obdEnabled {
@@ -85,16 +85,14 @@ struct SettingsView: View {
                         }
                     }
                 } header: { Text("OBD-II (optional)") } footer: {
-                    Text("A $15 ELM327 Bluetooth LE adapter reads real fuel use per drive — hundreds of validation points instead of one per tank.")
+                    Text("Needs a Bluetooth LE ELM327 adapter.")
                 }
                 Section {
                     Toggle("Contribute to the hazard map", isOn: $settings.contributeToHazardMap)
                     Toggle("Back up blurred event clips", isOn: $settings.uploadClips)
                         .disabled(!sync.isSignedIn)
                     NavigationLink { PrivacyView() } label: { Text("What leaves my phone") }
-                } header: { Text("Privacy") } footer: {
-                    Text("Raw video never exists — faces and plates are blurred before anything is written. Hazard contributions are pooled with k-anonymity (≥\(Thresholds.kEvents) events from ≥\(Thresholds.kUsers) drivers).")
-                }
+                } header: { Text("Privacy") }
                 Section {
                     LabeledContent("Weights", value: model.baseModel.source)
                     if let n = model.baseModel.fitN, let r2 = model.baseModel.fitR2 {
@@ -105,15 +103,13 @@ struct SettingsView: View {
                     if model.baseModel.source != "default" {
                         Button("Reset to default weights", role: .destructive) { model.resetScoringModel() }
                     }
-                } header: { Text("Scoring model") } footer: {
-                    Text("Fit weights in notebooks/validation.ipynb, then import the scoring_model.json it writes.")
-                }
+                } header: { Text("Scoring model") }
                 Section {
                     LabeledContent("Fuel price fallback") {
                         TextField("$/gal", value: $settings.defaultFuelPrice, format: .number.precision(.fractionLength(2)))
                             .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80)
                     }
-                } footer: { Text("Used for the \"about 4¢\" figures until your fuel log has a price.") }
+                } footer: { Text("Used until your fuel log has a price.") }
                 Section {
                     LabeledContent("Drives on this phone", value: "\(drives.records.count) · \(Storage.byteString(storageBytes))")
                     Stepper(value: $settings.keepFullVideoDays, in: 0...90, step: 7) {
@@ -125,7 +121,27 @@ struct SettingsView: View {
                         storageBytes = drives.totalBytes()
                     }
                     Button("Delete all data on this phone", role: .destructive) { confirmWipe = true }
-                } header: { Text("Storage") } footer: { Text("Event clips are always kept; only full-length drive videos are pruned.") }
+                } header: { Text("Storage") } footer: { Text("Event clips are always kept.") }
+                Section {
+                    if let demo = settings.demoProfile {
+                        LabeledContent("Showing", value: "\(demo.person) · \(demo.title.lowercased())")
+                    }
+                    ForEach(DemoProfile.allCases) { profile in
+                        Button { pendingDemo = profile } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Load \(profile.person) (\(profile.title.lowercased()))")
+                                Text(profile.summary).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .disabled(model.demoLoading)
+                    }
+                    if model.demoLoading {
+                        HStack(spacing: 10) { ProgressView(); Text("Building demo drives…").foregroundStyle(.secondary) }
+                    }
+                    if settings.isDemo {
+                        Button("Exit demo and clear its data", role: .destructive) { confirmExitDemo = true }
+                    }
+                } header: { Text("Demo") }
                 Section("About") {
                     NavigationLink { DisclaimerAcceptView(accepting: false) } label: {
                         Text("Not a driving instructor")
@@ -167,7 +183,15 @@ struct SettingsView: View {
             } message: { Text(error ?? "") }
             .confirmationDialog("Delete everything on this phone?", isPresented: $confirmWipe, titleVisibility: .visible) {
                 Button("Delete all local data", role: .destructive) { model.wipeLocalData() }
-            } message: { Text("Drives, videos, clips, practice hours, fuel log and vehicles are removed from this phone. Your cloud account (if any) is not affected.") }
+            } message: { Text("Removes everything on this phone. Cloud data is kept.") }
+            .confirmationDialog(pendingDemo.map { "Load \($0.person)'s demo?" } ?? "",
+                                isPresented: Binding(get: { pendingDemo != nil }, set: { if !$0 { pendingDemo = nil } }),
+                                titleVisibility: .visible, presenting: pendingDemo) { profile in
+                Button("Replace this phone's data with the demo", role: .destructive) { Task { await model.loadDemo(profile) } }
+            } message: { _ in Text("Replaces the drives, hours, cars and fuel log here.") }
+            .confirmationDialog("Exit the demo?", isPresented: $confirmExitDemo, titleVisibility: .visible) {
+                Button("Clear demo data", role: .destructive) { model.exitDemo() }
+            } message: { Text("Removes the demo drives and starts Driveby fresh.") }
             .confirmationDialog("Delete your Driveby account?", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
                 Button("Delete account and cloud data", role: .destructive) {
                     Task {
@@ -175,7 +199,7 @@ struct SettingsView: View {
                         catch { self.error = error.localizedDescription }
                     }
                 }
-            } message: { Text("Removes your account, synced drives, events, fuel log and clips from the server. Drives on this phone stay.") }
+            } message: { Text("Removes your cloud data. Drives on this phone stay.") }
             .task {
                 storageBytes = drives.totalBytes()
                 let url = Storage.exportsRoot.appendingPathComponent("scoring_model.json")
@@ -188,8 +212,6 @@ struct SettingsView: View {
         Section {
             if !sync.isConfigured {
                 Text("Local-only mode")
-                Text("Cloud sync isn't configured in this build (Config.plist). Everything works on this phone.")
-                    .font(.footnote).foregroundStyle(.secondary)
             } else if let email = sync.signedInEmail {
                 LabeledContent("Signed in", value: email)
                 Button {
@@ -210,7 +232,6 @@ struct SettingsView: View {
                 Button("Delete account…", role: .destructive) { confirmDeleteAccount = true }
             } else {
                 Button { showAccount = true } label: { Text("Sign in or create an account") }
-                Text("Back up your history and contribute to the district hazard map.").font(.footnote).foregroundStyle(.secondary)
             }
         } header: { Text("Account") }
     }
@@ -229,7 +250,7 @@ struct VehicleEditView: View {
                 LabeledContent("Model", value: vehicle.displayName)
                 if let t = vehicle.trim { LabeledContent("Trim", value: t) }
                 LabeledContent("EPA city / hwy / combined",
-                               value: [vehicle.epaCity, vehicle.epaHwy, vehicle.epaCombined].map { $0.map { String(Int($0)) } ?? "—" }.joined(separator: " / "))
+                               value: [vehicle.epaCity, vehicle.epaHwy, vehicle.epaCombined].map { $0.map { String(Int($0)) } ?? "-" }.joined(separator: " / "))
             }
             Section {
                 LabeledContent("Mass (kg)") {
@@ -240,7 +261,7 @@ struct VehicleEditView: View {
                     Slider(value: $vehicle.regenFactor, in: 0...0.8, step: 0.05)
                 }
             } header: { Text("Physics") } footer: {
-                Text("Mass sets the kinetic energy thrown away by braking. Hybrids and EVs recover some of it — the recovery factor credits that.")
+                Text("Hybrids and EVs recover some braking energy.")
             }
             Section {
                 Button("Make this the active vehicle") { settings.activeVehicleId = vehicle.id }

@@ -32,13 +32,13 @@ extension EventKind {
 
 enum Fmt {
     static func miles(_ metres: Double?) -> String {
-        guard let m = metres else { return "—" }
+        guard let m = metres else { return "-" }
         let mi = Units.miles(m)
         return mi < 10 ? String(format: "%.1f mi", mi) : String(format: "%.0f mi", mi)
     }
 
     static func duration(_ s: Double?) -> String {
-        guard let s, s.isFinite else { return "—" }
+        guard let s, s.isFinite else { return "-" }
         let total = Int(s.rounded())
         if total >= 3600 { return "\(total / 3600) h \((total % 3600) / 60) min" }
         if total >= 60 { return "\(total / 60) min" }
@@ -50,9 +50,9 @@ enum Fmt {
         return t >= 3600 ? String(format: "%d:%02d:%02d", t / 3600, (t % 3600) / 60, t % 60) : String(format: "%d:%02d", t / 60, t % 60)
     }
 
-    static func score(_ s: Double?) -> String { s.map { String(format: "%.0f", $0) } ?? "—" }
+    static func score(_ s: Double?) -> String { s.map { String(format: "%.0f", $0) } ?? "-" }
 
-    static func mph(_ mps: Double?) -> String { mps.map { String(format: "%.0f mph", Units.mph($0)) } ?? "—" }
+    static func mph(_ mps: Double?) -> String { mps.map { String(format: "%.0f mph", Units.mph($0)) } ?? "-" }
 
     static let dayTime: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f
@@ -177,15 +177,15 @@ extension LiveCue {
 
 enum Disclaimer {
     static func short(_ mode: DriverMode) -> String {
-        mode == .newDriver ? "Practice tool only — not a driving instructor." : "A coach, not a safety system."
+        mode == .newDriver ? "Practice tool, not a driving instructor." : "A coach, not a safety system."
     }
 
     static func detail(_ mode: DriverMode) -> String {
         mode == .newDriver
-            ? "Practise with a licensed adult in the passenger seat. Driveby never replaces your driving instructor."
-            : "Eyes on the road, hands off the phone. Driveby speaks its tips so you never need to look."
+            ? "Practise only with a licensed adult beside you."
+            : "Eyes on the road, hands off the phone."
     }
 
-    static let full = "Driveby is a practice tool. It does not replace a licensed driving instructor or a state-approved driver education course. Always practise with a licensed adult in the front passenger seat, as your learner's permit requires, and follow everything your instructor teaches you."
-    static let fullRegular = "Driveby is a coaching tool, not a safety system. Keep your eyes on the road and your hands off the phone — it speaks short tips so you never need to look. Traffic laws, signs and road conditions always come before anything the app says."
+    static let full = "Driveby is a practice tool, not a driving instructor. Always practise with a licensed adult."
+    static let fullRegular = "Driveby is a coach, not a safety system. Eyes on the road, hands off the phone."
 }

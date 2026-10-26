@@ -20,16 +20,17 @@ struct QuickStartView: View {
     @State private var supervisorPresent = false
 
     private struct PhoneTip: Identifiable {
+        var symbol: String
         var title: String
         var detail: String
         var id: String { title }
     }
 
     private static let phoneTips = [
-        PhoneTip(title: "Mount it in landscape", detail: "Centred behind the mirror, not blocking your view."),
-        PhoneTip(title: "Lens clear, above the dash", detail: "So the camera sees the road ahead."),
-        PhoneTip(title: "Plug it in", detail: "Recording uses a lot of battery."),
-        PhoneTip(title: "Turn on Driving Focus", detail: "No notifications while you drive."),
+        PhoneTip(symbol: "iphone.landscape", title: "Mount it in landscape", detail: "Centred behind the mirror, not blocking your view."),
+        PhoneTip(symbol: "camera.viewfinder", title: "Lens clear, above the dash", detail: "So the camera sees the road ahead."),
+        PhoneTip(symbol: "bolt.fill", title: "Plug it in", detail: "Recording uses a lot of battery."),
+        PhoneTip(symbol: "moon.fill", title: "Turn on Driving Focus", detail: "No notifications while you drive."),
     ]
 
     private var steps: [Step] { settings.isNewDriver ? [.hello, .phone, .rider, .go] : [.hello, .phone, .go] }
@@ -84,7 +85,9 @@ struct QuickStartView: View {
         QuickStartPage(title: "Hey, ready to drive?",
                        subtitle: model.activeVehicle.map { "Let's get your \($0.displayName) on the road." } ?? "Let's get you on the road.",
                        buttonTitle: "Let's go", action: advance) {
-            EmptyView()
+            TopDownCar(scale: 3)
+                .frame(maxWidth: .infinity)
+                .frame(height: 120)
         }
     }
 
@@ -110,6 +113,7 @@ struct QuickStartView: View {
             withAnimation(.snappy) { if done { checked.remove(tip.id) } else { checked.insert(tip.id) } }
         } label: {
             HStack(spacing: 14) {
+                Image(systemName: tip.symbol).font(.title3).foregroundStyle(.tint).frame(width: 30)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tip.title).font(.headline).foregroundStyle(.primary)
                     Text(tip.detail).font(.footnote).foregroundStyle(.secondary)
@@ -127,14 +131,14 @@ struct QuickStartView: View {
     }
 
     private var rider: some View {
-        QuickStartPage(title: "Who's riding with you?", subtitle: "Your permit needs a licensed adult in the front passenger seat.",
+        QuickStartPage(title: "Who's riding with you?", subtitle: "Your permit needs a licensed adult beside you.",
                        buttonTitle: "Next", isEnabled: supervisorName != nil && supervisorPresent, action: advance) {
             VStack(spacing: 12) {
                 TextField("Supervisor's name", text: $supervisor)
                     .textContentType(.name)
                     .padding(14)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                Toggle("They're in the front passenger seat and paying attention", isOn: $supervisorPresent)
+                Toggle("They're in the passenger seat", isOn: $supervisorPresent)
                     .padding(14)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
@@ -143,11 +147,16 @@ struct QuickStartView: View {
 
     private var go: some View {
         QuickStartPage(title: "You're ready",
-                       subtitle: "Driveby starts recording on its own once you're moving, and talks you through the drive.",
-                       buttonTitle: "Start when I drive", action: { finish(auto: true) }) {
-            VStack(alignment: .leading, spacing: 14) {
+                       subtitle: "Recording starts once you're moving.",
+                       buttonTitle: "Start when I drive", buttonSymbol: "wand.and.stars", action: { finish(auto: true) }) {
+            VStack(spacing: 14) {
+                Image(systemName: "steeringwheel")
+                    .font(.system(size: 84, weight: .bold))
+                    .foregroundStyle(.tint)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 Button { finish(auto: false) } label: {
-                    Text("Start recording now").font(.subheadline.weight(.semibold))
+                    Label("Start recording now", systemImage: "record.circle").font(.subheadline.weight(.semibold))
                 }
             }
         }
@@ -179,6 +188,7 @@ private struct QuickStartPage<Content: View>: View {
     var title: String
     var subtitle: String
     var buttonTitle: String
+    var buttonSymbol: String? = nil
     var isEnabled = true
     var action: () -> Void
     @ViewBuilder var content: Content
@@ -193,8 +203,10 @@ private struct QuickStartPage<Content: View>: View {
             ScrollView { content.padding(.vertical, 4) }
                 .scrollBounceBehavior(.basedOnSize)
             Button(action: action) {
-                Text(buttonTitle)
-                    .font(.roadSign(.title3))
+                Group {
+                    if let buttonSymbol { Label(buttonTitle, systemImage: buttonSymbol) } else { Text(buttonTitle) }
+                }
+                .font(.roadSign(.title3))
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
             }

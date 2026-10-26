@@ -1,15 +1,3 @@
-"""Phase 1 — ingest a drive folder into a clean 10 Hz pandas DataFrame.
-
-    from processor.ingest import load_drive
-    drive = load_drive("data/drive_0007")
-    drive.df          # 10 Hz series: t, lat, lon, heading, v_raw, v, a_long, yaw_rate, a_lat, distance_m, gps_gap, lead_dist
-    drive.video       # VideoIndex — frame_at(t_sensor) gives the matching video frame
-    drive.sidecar     # parsed drive.json
-
-Mirrors Driveby/Core/Ingest.swift exactly (parity-tested). Decision 3: longitudinal
-acceleration = derivative of Savitzky–Golay-smoothed GPS Doppler speed; the gyro
-gives yaw rate about the gravity axis; lateral acceleration = v × yaw_rate.
-"""
 from __future__ import annotations
 
 import json
@@ -25,12 +13,9 @@ from . import contract as C
 
 
 def round_half_away(x):
-    """Swift's `.rounded()` (schoolbook rounding). numpy rounds half-to-even, which would drift from the app."""
     x = np.asarray(x, dtype=float)
     return np.sign(x) * np.floor(np.abs(x) + 0.5)
 
-
-# ----------------------------------------------------------------------------- parsing
 
 @dataclass
 class SensorLog:
@@ -48,7 +33,6 @@ _LEAD_COLS = ["t", "bx", "by", "bw", "bh", "dist"]
 
 
 def parse_jsonl(path: str | Path) -> SensorLog:
-    """Parse sensors.jsonl. A half-written last line (crash / dead battery) is skipped, never fatal."""
     rows = {"gps": [], "imu": [], "obd": [], "lead": []}
     bad = 0
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -90,8 +74,6 @@ def parse_jsonl(path: str | Path) -> SensorLog:
                      mk(rows["lead"], _LEAD_COLS), bad)
 
 
-# ----------------------------------------------------------------------------- geodesy
-
 EARTH_R = 6_371_008.8
 
 
@@ -109,8 +91,6 @@ def bearing(lat1, lon1, lat2, lon2):
     return (math.degrees(math.atan2(y, x)) + 360) % 360
 
 
-# ----------------------------------------------------------------------------- smoothing
-
 def savgol(y: np.ndarray, window: int = C.SAVGOL_WINDOW, order: int = C.SAVGOL_ORDER) -> np.ndarray:
     n = len(y)
     if window > n:
@@ -120,8 +100,6 @@ def savgol(y: np.ndarray, window: int = C.SAVGOL_WINDOW, order: int = C.SAVGOL_O
     return savgol_filter(np.asarray(y, dtype=float), window_length=window, polyorder=order, mode="interp")
 
 
-# ----------------------------------------------------------------------------- resampling
-
 class NoUsableGPS(Exception):
     pass
 
@@ -129,7 +107,6 @@ class NoUsableGPS(Exception):
 def resample(log: SensorLog, hz: float = C.RESAMPLE_HZ) -> pd.DataFrame:
     dt = 1.0 / hz
     g = log.gps
-    # Step 2.1 — drop GPS samples with acc > 20 m before resampling
     fixes = g[(g.acc <= C.MAX_GPS_ACCURACY) & (g.acc >= 0)].reset_index(drop=True)
     if len(fixes) < 3:
         raise NoUsableGPS(f"only {len(fixes)} usable GPS fixes")
@@ -244,10 +221,7 @@ def lead_series(lead: pd.DataFrame, grid: np.ndarray) -> np.ndarray:
     return out
 
 
-# ----------------------------------------------------------------------------- trips
-
 def segment_trip(df: pd.DataFrame):
-    """Step 1.3: start = speed > 2 m/s sustained 10 s; end = speed < 0.5 m/s sustained 180 s. Returns (lo, hi) or None."""
     dt = df.attrs.get("dt", 0.1)
     v = df.v_raw.to_numpy()
     need_start = int(round_half_away(C.TRIP_START_SUSTAIN / dt))
@@ -287,17 +261,10 @@ def index_at(df: pd.DataFrame, t: float) -> int:
     return min(max(i, 0), len(df) - 1)
 
 
-# ----------------------------------------------------------------------------- video
-
 class VideoIndex:
-    """Index the (already blurred) drive video by SENSOR time.
-
-    Phone = dashcam (Decision 1), so video and sensors share one clock; the only offset is
-    camera start latency, recorded as `video_start_t` in the sidecar.
-    """
 
     def __init__(self, path: str | Path, video_start_t: float):
-        import cv2  # lazy: ingest works without OpenCV for sensor-only analysis
+        import cv2
         self.path = str(path)
         self.video_start_t = float(video_start_t)
         self._cap = cv2.VideoCapture(self.path)
@@ -319,7 +286,6 @@ class VideoIndex:
         return frame if ok else None
 
     def iter_frames(self, every_s: float = 0.2):
-        """Yield (t_sensor, frame) at ~5 fps (Step 1.2: extract at 5 fps)."""
         import cv2
         self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         step = max(int(round(self.fps * every_s)), 1)
@@ -338,15 +304,13 @@ class VideoIndex:
         self._cap.release()
 
 
-# ----------------------------------------------------------------------------- drive folder
-
 @dataclass
 class Drive:
     folder: Path
     sidecar: dict
     log: SensorLog
-    df: pd.DataFrame                     # full recording, 10 Hz
-    trip: tuple | None = None            # (lo, hi) indices into df
+    df: pd.DataFrame
+    trip: tuple | None = None
     video: VideoIndex | None = None
     extra: dict = field(default_factory=dict)
 

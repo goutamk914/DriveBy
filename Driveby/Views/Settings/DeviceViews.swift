@@ -67,10 +67,10 @@ struct MountCheckView: View {
                 gauge("Orientation", level.landscape ? "Landscape" : "Portrait", ok: level.landscape)
             }
             List {
-                Text("Landscape, lens centred behind the mirror, above the dash line.")
-                Text("The dashed lines should cross on the road ahead; the yellow band is \"our lane\" for following distance.")
-                Text("Level the horizon, then mark the mount position with tape — every drive must use the same geometry.")
-                Text("Clean the windshield. Glare and grime hurt detection and blur.")
+                Text("Landscape, centred, lens above the dash.")
+                Text("Lines cross on the road; yellow band is your lane.")
+                Text("Level the horizon and mark the mount with tape.")
+                Text("Clean the windshield.")
             }
             .listStyle(.plain)
             .font(.footnote)
@@ -100,17 +100,13 @@ struct CalibrationView: View {
         @Bindable var settings = settings
         Form {
             Section {
-                Text("Following distance uses the pinhole model: distance = car width (1.8 m) × focal length (px) ÷ box width (px). Driveby reads the factory-calibrated focal length from the camera automatically (AVFoundation intrinsic matrix) and stores it with every drive.")
-                    .font(.subheadline)
-            }
-            Section {
                 LabeledContent("Focal length override (px @ 1280 wide)") {
                     TextField("auto", value: $settings.focalOverride, format: .number.precision(.fractionLength(1)))
                         .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
                 }
                 Button("Use automatic") { settings.focalOverride = 0 }
             } header: { Text("Verify with a checkerboard") } footer: {
-                Text("Print a checkerboard, take ~20 photos with the phone in its mount, and run tools/calibrate_camera.py. Enter its fx here to override. Don't guess from the spec-sheet field of view — you'd be off by ~20%.")
+                Text("Enter fx from tools/calibrate_camera.py.")
             }
         }
         .navigationTitle("Camera calibration")
@@ -135,7 +131,7 @@ struct OBDView: View {
                     Button("Scan for adapters") { obd.scan() }
                 }
             } footer: {
-                Text("Plug the adapter into the port under the dashboard, turn the ignition on, then scan. iPhones can only use Bluetooth LE (or Wi-Fi) adapters — \"Bluetooth Classic\" ELM327s won't appear.")
+                Text("Bluetooth LE adapters only. Turn the ignition on first.")
             }
             if !obd.found.isEmpty && !obd.isReady {
                 Section("Nearby devices") {
@@ -150,7 +146,7 @@ struct OBDView: View {
                 }
             }
             if obd.isReady {
-                Section("PIDs (Week 0: which ones respond?)") {
+                Section("PIDs") {
                     ForEach(obd.report) { r in
                         HStack {
                             Text(r.pid.label)
@@ -160,8 +156,6 @@ struct OBDView: View {
                                 .font(.caption).foregroundStyle(r.supported == true ? Color.green : Color.secondary)
                         }
                     }
-                    Text("Fuel per trip uses 015E (fuel rate) when supported, otherwise MAF (0110): fuel g/s = MAF ÷ 14.7, gallons = g ÷ 2830.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             if !obd.log.isEmpty {
@@ -182,7 +176,7 @@ struct OBDView: View {
         case .scanning: return "Scanning"
         case .connecting: return "Connecting…"
         case .initializing: return "Initialising \(obd.connectedName ?? "")…"
-        case .ready: return "Connected — \(obd.connectedName ?? "adapter")"
+        case .ready: return "Connected to \(obd.connectedName ?? "adapter")"
         case .error(let m): return m
         }
     }

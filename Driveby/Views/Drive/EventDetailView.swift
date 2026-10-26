@@ -133,12 +133,9 @@ struct MomentDetailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .onTapGesture { p.togglePlay() }
             .accessibilityLabel("Blurred clip of this moment. Tap to pause or play.")
-            Text("Faces and plates were blurred on the phone before this video was ever written to disk.")
-                .font(.caption).foregroundStyle(.secondary)
         } else {
             Card {
-                Text(record.hasVideo ? "No clip — the camera wasn't recording at this moment."
-                                      : "This drive was recorded with sensors only, so there's no video to replay.")
+                Text(record.hasVideo ? "No clip for this moment." : "Sensors only, no video.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -196,7 +193,7 @@ struct MomentDetailView: View {
         let start = analysis?.tripStartT ?? 0
         let tint = moment.kind.color
         return Card {
-            SectionHeader(title: "Sensor trace", subtitle: "Same clock as the video — the line follows the playhead")
+            SectionHeader(title: "Sensor trace")
             Chart {
                 RectangleMark(xStart: .value("Start", moment.t - start), xEnd: .value("End", moment.tEnd - start))
                     .foregroundStyle(tint.opacity(0.15))
@@ -243,8 +240,8 @@ struct MomentDetailView: View {
             DisclosureGroup("Technical details", isExpanded: $showTechnical) {
                 VStack(alignment: .leading, spacing: 6) {
                     InfoRow(label: "Kind", value: moment.kind.rawValue)
-                    if !moment.isPositive { InfoRow(label: "Severity (0–1)", value: String(format: "%.2f", moment.severity)) }
-                    InfoRow(label: "Sensor time", value: String(format: "%.1f – %.1f s", moment.t, moment.tEnd))
+                    if !moment.isPositive { InfoRow(label: "Severity (0-1)", value: String(format: "%.2f", moment.severity)) }
+                    InfoRow(label: "Sensor time", value: String(format: "%.1f - %.1f s", moment.t, moment.tEnd))
                     if let e = event {
                         if let p = e.detail.peak { InfoRow(label: "Peak", value: String(format: "%.2f", p)) }
                         if let en = e.detail.energyJ { InfoRow(label: "Energy dissipated", value: String(format: "%.0f kJ", en / 1000)) }
@@ -255,8 +252,6 @@ struct MomentDetailView: View {
                         InfoRow(label: "Location", value: String(format: "%.5f, %.5f", lat, lon))
                         InfoRow(label: "Hazard cell", value: HazardGrid.cellKey(lat: lat, lon: lon))
                     }
-                    Text("Thresholds are industry telematics values. Stop signs come from OpenStreetMap, so a stop-sign moment is a prompt to review the clip, not a verdict.")
-                        .font(.caption2).foregroundStyle(.secondary)
                 }
                 .padding(.top, 6)
             }

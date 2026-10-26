@@ -1,13 +1,3 @@
-"""Step 5.2 — checkerboard camera calibration (verify the focal length the app reads from AVFoundation).
-
-1. Print a checkerboard (9×6 inner corners; https://github.com/opencv/opencv/blob/4.x/doc/pattern.png).
-2. Put the phone in its mount (same zoom/lens the app uses — the 1× wide camera), take ~20 photos of the
-   board from different angles and distances. AirDrop them to a folder.
-3. python tools/calibrate_camera.py photos/ --cols 9 --rows 6
-
-Prints fx/fy in pixels, rescaled to the app's 1280-pixel-wide video. Enter fx in
-Settings → Camera calibration to override the automatic value. Don't guess from spec-sheet FOV.
-"""
 import argparse
 import glob
 

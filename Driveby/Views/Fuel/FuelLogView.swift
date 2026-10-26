@@ -18,7 +18,7 @@ struct FuelLogView: View {
         Group {
             List {
                 Section {
-                    Text("Fill to the first click of the pump, at the same station if you can. Inconsistent fill levels are the biggest source of noise in tank-to-tank MPG.")
+                    Text("Fill to the first click every time.")
                         .font(.footnote).foregroundStyle(.secondary)
                     NavigationLink { ValidationView() } label: {
                         Text("See how your score predicts MPG")
@@ -26,7 +26,7 @@ struct FuelLogView: View {
                 }
                 Section(model.activeVehicle?.displayName ?? "Fill-ups") {
                     if logs.isEmpty {
-                        Text("No fill-ups yet. Add one the next time you buy gas.").foregroundStyle(.secondary)
+                        Text("No fill-ups yet.").foregroundStyle(.secondary)
                     }
                     let mpg = tankMPG
                     ForEach(logs) { l in
@@ -106,7 +106,7 @@ struct FuelEntryForm: View {
                     }
                     Toggle("Filled to the first click", isOn: $log.filledToFull)
                 } footer: {
-                    Text("Use the pump's gallons to three decimals. Partial fills are fine — they roll into the next full tank.")
+                    Text("Partial fills roll into the next full tank.")
                 }
                 if !garage.vehicles.isEmpty {
                     Picker("Vehicle", selection: $log.vehicleId) {

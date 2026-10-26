@@ -9,7 +9,7 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         var errorDescription: String? {
             switch self {
             case .unavailable: return "No back camera is available on this device."
-            case .notAuthorized: return "Camera access is off. Enable it in Settings → Driveby, or record sensors only."
+            case .notAuthorized: return "Camera is off. Enable it in Settings → Driveby."
             case .configurationFailed: return "The camera couldn't be configured."
             }
         }
@@ -185,13 +185,13 @@ final class CameraRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         }
     }
 
-    @objc private func sessionInterrupted(_ n: Notification) { interrupt(reason: "Camera interrupted (phone locked or another app used the camera)") }
+    @objc private func sessionInterrupted(_ n: Notification) { interrupt(reason: "Camera interrupted. Sensors still recording.") }
     @objc private func sessionError(_ n: Notification) { interrupt(reason: "Camera error") }
     @objc private func thermalChanged() {
         let state = ProcessInfo.processInfo.thermalState
         videoQueue.async {
             switch state {
-            case .critical: self.interrupt(reason: "Phone too hot — video stopped, sensors still recording")
+            case .critical: self.interrupt(reason: "Phone too hot. Video stopped, sensors still recording.")
             case .serious: self.redactor.minInterval = 1.0 / 6.0
             default: break
             }

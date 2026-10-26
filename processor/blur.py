@@ -1,21 +1,3 @@
-"""Phase 4.1 — BLUR FIRST, ALWAYS.
-
-Enforced structurally: `write_redacted_video()` / `write_redacted_frames()` in this file are the
-ONLY functions in this codebase that construct a cv2.VideoWriter, and it calls `redact()` on every frame with no bypass parameter.
-`Scripts/privacy_lint.sh` fails the build/CI if a VideoWriter appears anywhere else.
-
-The iOS app does the same thing on-device in real time (Driveby/Capture/RedactingVideoWriter.swift),
-so phone recordings arrive here already blurred. This module exists for (a) footage imported from a
-standalone dashcam SD card (2.0 path) and (b) auditing: `spot_check()` renders 20 random frames so
-you can confirm every plate and face is obscured and state your miss rate honestly.
-
-Models (any Ultralytics YOLO .pt):
-    plates: --plate-model license_plate_detector.pt   (e.g. a YOLOv8 plate model you fine-tune)
-    faces:  --face-model  yolov8n-face.pt
-If a model file is missing we fall back to ERRING TOWARD OVER-BLURRING: COCO yolov8n vehicle boxes
-get their plate zone blurred, person boxes get their head zone blurred, and OpenCV's Haar face
-cascade runs as a second face detector.
-"""
 from __future__ import annotations
 
 import random
@@ -60,7 +42,6 @@ class Redactor:
             boxes += _boxes(self.plate, frame)
         if self.face is not None:
             boxes += _boxes(self.face, frame)
-        # Fallbacks / belt-and-braces: plate zone of every vehicle, head zone of every person.
         for x1, y1, x2, y2 in _boxes(self.coco, frame, classes={2, 3, 5, 7}):
             w, h = x2 - x1, y2 - y1
             boxes.append((int(x1 + 0.15 * w), int(y1 + 0.45 * h), int(x2 - 0.15 * w), y2))
@@ -73,13 +54,12 @@ class Redactor:
         return boxes
 
     def redact(self, frame):
-        """Blur every detected plate/face region in place. No bypass parameter — by design."""
         for x1, y1, x2, y2 in self.boxes(frame):
             x1, y1 = max(0, x1 - PAD), max(0, y1 - PAD)
             x2, y2 = min(frame.shape[1], x2 + PAD), min(frame.shape[0], y2 + PAD)
             roi = frame[y1:y2, x1:x2]
             if roi.size:
-                k = max(15, ((x2 - x1) // 3) | 1)   # kernel must be odd
+                k = max(15, ((x2 - x1) // 3) | 1)
                 small = cv2.resize(roi, (max(1, (x2 - x1) // 8), max(1, (y2 - y1) // 8)), interpolation=cv2.INTER_LINEAR)
                 pix = cv2.resize(small, (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
                 frame[y1:y2, x1:x2] = cv2.GaussianBlur(pix, (k, k), 0)
@@ -90,7 +70,6 @@ _default: Redactor | None = None
 
 
 def redact(frame):
-    """Module-level redact() as in the Build Guide."""
     global _default
     if _default is None:
         _default = Redactor()
@@ -98,7 +77,6 @@ def redact(frame):
 
 
 def write_redacted_video(src: str | Path, dst: str | Path, redactor: Redactor | None = None, fps: float | None = None):
-    """THE ONLY VideoWriter call site. Every frame passes through redact() before it touches disk."""
     r = redactor or Redactor()
     cap = cv2.VideoCapture(str(src))
     if not cap.isOpened():
@@ -121,7 +99,6 @@ def write_redacted_video(src: str | Path, dst: str | Path, redactor: Redactor | 
 
 
 def write_redacted_frames(frames, dst: str | Path, fps: float = 15.0, redactor: Redactor | None = None):
-    """Second (and last) VideoWriter call site — for annotated demo clips. Same rule: redact() every frame."""
     r = redactor or Redactor()
     h, w = frames[0].shape[:2]
     writer = cv2.VideoWriter(str(dst), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
@@ -134,7 +111,6 @@ def write_redacted_frames(frames, dst: str | Path, fps: float = 15.0, redactor: 
 
 
 def spot_check(video: str | Path, out_png: str | Path, n: int = 20, seed: int | None = None):
-    """Phase 4 'done when': 20 random frames in a contact sheet — inspect every plate and face by eye."""
     cap = cv2.VideoCapture(str(video))
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     rng = random.Random(seed)

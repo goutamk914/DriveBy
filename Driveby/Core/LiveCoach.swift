@@ -15,8 +15,8 @@ enum LiveCue: String, CaseIterable, Sendable {
         case .sharpTurn:
             return learner ? "That turn was sharp. Slow down before you start turning." : "Slow down for turns."
         case .speeding:
-            guard let limitMph else { return learner ? "You're going too fast. Ease off." : "Watch your speed." }
-            return learner ? "You're over the limit. It's \(limitMph) here." : "Speed limit is \(limitMph)."
+            guard let limitMph else { return "You're speeding. Slow down." }
+            return "You're speeding. Slow down to \(limitMph)."
         case .tailgating:
             return learner ? "You're following too closely. Drop back to a three second gap." : "Too close. Leave more space."
         case .smoothStop:
@@ -29,7 +29,7 @@ enum LiveCue: String, CaseIterable, Sendable {
         case .hardBrake: return "Hard brake"
         case .hardAccel: return "Easy on the gas"
         case .sharpTurn: return "Sharp turn"
-        case .speeding: return limitMph.map { "Limit \($0) mph" } ?? "Watch your speed"
+        case .speeding: return limitMph.map { "Slow down to \($0)" } ?? "Slow down"
         case .tailgating: return "Too close"
         case .smoothStop: return "Smooth stop"
         }
@@ -97,7 +97,7 @@ struct LiveCoach: Sendable {
     mutating func headway(t: Double, leadDistance: Double?, v: Double) -> LiveCueEvent? {
         defer { lastHeadwayT = t }
         if let last = lastHeadwayT, t - last > Self.maxHeadwayGap { closeSince = nil }
-        guard let d = leadDistance, v >= Thresholds.tailgateMinSpeed, d / v < Thresholds.tailgateHeadway else {
+        guard overLimitSince == nil, let d = leadDistance, v >= Thresholds.tailgateMinSpeed, d / v < Thresholds.tailgateHeadway else {
             closeSince = nil
             return nil
         }

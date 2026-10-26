@@ -235,7 +235,7 @@ struct SkillBar: View {
             HStack {
                 Text(skill.title).font(.subheadline.weight(.semibold))
                 Spacer()
-                Text(percent.map { String(format: "%.0f%%", $0) } ?? "—")
+                Text(percent.map { String(format: "%.0f%%", $0) } ?? "-")
                     .font(.headline.monospacedDigit())
                     .foregroundStyle(Theme.scoreColor(percent))
             }

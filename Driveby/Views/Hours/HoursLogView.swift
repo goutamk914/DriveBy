@@ -18,7 +18,7 @@ struct HoursLogView: View {
 
                 Section {
                     if log.entries.isEmpty {
-                        Text("Your supervised drives show up here automatically after each recording. Drove without the app, or logging on paper? Tap + to add it.")
+                        Text("Recorded drives appear here. Tap Add for others.")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                     ForEach(log.entries) { e in
@@ -32,7 +32,7 @@ struct HoursLogView: View {
                 } header: {
                     Text("Sessions")
                 } footer: {
-                    Text("Night time is worked out from sunset and sunrise where the drive started. Tap a session to fix the supervisor, time or notes.")
+                    Text("Tap a session to edit it.")
                 }
 
                 Section {
@@ -45,7 +45,7 @@ struct HoursLogView: View {
                     TextField("Learner's name (printed on the PDF)", text: Bindable(settings).learnerName)
                         .textContentType(.name)
                 } header: { Text("Export") } footer: {
-                    Text("Use this record to fill in your state's official driving log — in Virginia, the form your parent or guardian signs. Driveby's log is not the official form.")
+                    Text("Not the official state form.")
                 }
 
                 Section { DisclaimerBanner().listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
@@ -88,12 +88,12 @@ struct HoursLogView: View {
             }
             .frame(maxWidth: .infinity)
             if h.complete {
-                Text("Requirement met — ask your parent or guardian to sign your official log.")
+                Text("Requirement met. Get your official log signed.")
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.efficiency)
             } else {
                 Text(remainingText(h)).font(.subheadline)
             }
-            Text("Requirement: \(h.requirement.label) — \(Int(h.requirement.totalHours)) h supervised, \(Int(h.requirement.nightHours)) h after sunset.")
+            Text("\(h.requirement.label): \(Int(h.requirement.totalHours)) h, \(Int(h.requirement.nightHours)) h after sunset")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
@@ -208,16 +208,10 @@ struct PracticeEntryForm: View {
                 Section {
                     TextField("Supervisor's name", text: $entry.supervisor).textContentType(.name)
                 } header: { Text("Supervising driver") } footer: {
-                    Text("Licensed driver 21+, parent or legal guardian, or licensed sibling 18+, in the front passenger seat.")
+                    Text("Licensed driver 21+, parent or guardian, or licensed sibling 18+.")
                 }
                 Section("Notes") {
                     TextField("Roads, weather, what you practised…", text: $entry.notes, axis: .vertical).lineLimit(2...5)
-                }
-                if !entry.manual {
-                    Section {
-                        Text("Recorded by Driveby. You can correct the supervisor, notes or times if something's off.")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
                 }
                 if !isNew {
                     Section {
@@ -276,7 +270,7 @@ struct HoursTargetForm: View {
                         s.hoursTotalTarget = 45; s.hoursNightTarget = 15
                     }
                 } footer: {
-                    Text("Virginia requires drivers under 18 to log 45 hours of supervised driving, 15 after sunset, before the road test. Check your state's DMV for its rules.")
+                    Text("Check your state's DMV rules.")
                 }
         }
         .navigationTitle("Hour requirement")

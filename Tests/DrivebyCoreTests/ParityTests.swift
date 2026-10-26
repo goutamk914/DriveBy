@@ -106,7 +106,7 @@ final class ParityTests: XCTestCase {
         }
         let brake = try XCTUnwrap(a.events.first { $0.kind == .hardBrake })
         let c = EventCopywriter.copy(for: brake, tripStartT: a.tripStartT, pricePerGallon: 3.40)
-        XCTAssertTrue(c.headline.hasPrefix("Hard braking — 0:59 into your drive"), c.headline)
+        XCTAssertTrue(c.headline.hasPrefix("Hard braking, 0:59 into your drive"), c.headline)
         XCTAssertTrue(c.body.hasPrefix("You slowed from 33 to 0 mph"), c.body)
         XCTAssertTrue(c.body.contains("on Route 7"), c.body)
         XCTAssertTrue(c.body.contains("¢"), c.body)

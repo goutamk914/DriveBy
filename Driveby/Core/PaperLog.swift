@@ -155,7 +155,7 @@ enum PaperLog {
 
     private enum Pattern {
         static let suffix = "(am|pm|a\\.m\\.|p\\.m\\.|a|p)?"
-        static let range = regex("\\b(\\d{1,2})(?:[:.](\\d{2}))?\\s*\(suffix)\\s*(?:-|–|—|to)\\s*(\\d{1,2})(?:[:.](\\d{2}))?\\s*\(suffix)\\b")
+        static let range = regex("\\b(\\d{1,2})(?:[:.](\\d{2}))?\\s*\(suffix)\\s*(?:-|\u{2013}|\u{2014}|to)\\s*(\\d{1,2})(?:[:.](\\d{2}))?\\s*\(suffix)\\b")
         static let target = regex("(?:/|\\bout of\\b)\\s*\\d+(?:\\.\\d+)?|(?<=\\d)\\s+of\\s+\\d+(?:\\.\\d+)?")
         static let clock = regex("\\b(\\d{1,3}):([0-5]\\d)\\b(?!\\s*(?:am|pm|a\\.m|p\\.m))")
         static let timeOfDay = regex("\\b\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a\\.m\\.|p\\.m\\.)")

@@ -1,14 +1,3 @@
-"""Process a drive folder end to end on the laptop.
-
-    python -m processor.run data/drive_0007                 # events + scores → data/drive_0007/analysis.json
-    python -m processor.run data/drive_0007 --offline       # don't hit Overpass (use SQLite cache only)
-    python -m processor.run data/drive_0007 --vision        # recompute lead-vehicle distance from video
-    python -m processor.run data/ --all                     # every drive folder under data/
-
-Drive folders come from the app (Settings → Export drive → "Raw data for the processor") and contain
-drive.json, sensors.jsonl and the ALREADY-BLURRED video. Output `analysis.json` has the same shape the
-app writes, so the validation notebook can use drives processed on either side.
-"""
 from __future__ import annotations
 
 import argparse
@@ -26,7 +15,6 @@ from . import speedlimits as SL
 
 
 def obd_fuel(obd, t0, t1):
-    """Decision 4: integrate PID 015E fuel rate (L/h), else MAF (g/s)/14.7/2830 → gallons."""
     w = obd[(obd.t >= t0) & (obd.t <= t1)]
     if len(w) < 10:
         return None, None
@@ -116,7 +104,7 @@ def main(argv=None):
                   f"efficiency {m.efficiency_score(r['components']):.0f}, safety {r['safety']['score']:.0f}")
             for e in r["events"]:
                 print(f"   {e['t_offset_s']:8.1f}s  {e['kind']:<13} sev {e['severity']:.2f}")
-        except Exception as ex:  # noqa: BLE001 — report and continue with the next drive
+        except Exception as ex:
             print(f"{f.name}: skipped ({ex})")
 
 

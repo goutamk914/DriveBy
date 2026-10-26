@@ -55,10 +55,6 @@ struct NewDriverSetupView: View {
     var body: some View {
         @Bindable var s = settings
         Form {
-            Section {
-                Text("Driveby logs your supervised hours for you, day and night, and coaches you one step at a time.")
-                    .font(.subheadline)
-            }
             Section("Your permit") {
                 NavigationLink { HoursTargetForm() } label: {
                     LabeledContent("Hours to log", value: "\(Int(s.hoursTotalTarget)) h · \(Int(s.hoursNightTarget)) at night")
@@ -67,7 +63,7 @@ struct NewDriverSetupView: View {
             Section {
                 TextField("Supervising driver's name", text: $s.defaultSupervisor).textContentType(.name)
             } header: { Text("Who rides with you") } footer: {
-                Text("A licensed adult in the front passenger seat. You can change it before each drive.")
+                Text("A licensed adult in the passenger seat.")
             }
             Section {
                 Button { importing = true } label: { Text("Scan or upload your paper log") }
@@ -78,7 +74,7 @@ struct NewDriverSetupView: View {
                     LabeledContent("Already logged", value: HoursSummary.hoursString(model.hoursSummary.totalS))
                 }
             } header: { Text("Already have hours?") } footer: {
-                Text("Driveby reads the hours from a photo of your log. The photo stays on your phone.")
+                Text("The photo stays on your phone.")
             }
             Section {
                 Button(action: onDone) { Text(doneTitle).font(.headline).frame(maxWidth: .infinity) }
@@ -103,11 +99,11 @@ struct PermissionsStep: View {
     var body: some View {
         Form {
             Section {
-                permissionRow(title: "Location", detail: "Your speed and route — needed to score a drive.",
+                permissionRow(title: "Location", detail: "Speed and route. Needed to score a drive.",
                               granted: locationGranted, denied: location == .denied || location == .restricted) {
                     recorder.sensors.requestLocationPermission()
                 }
-                permissionRow(title: "Camera (optional)", detail: "Dashcam clips and following distance. Faces and plates are blurred first.",
+                permissionRow(title: "Camera (optional)", detail: "Clips and following distance, blurred first.",
                               granted: camera == .authorized, denied: camera == .denied || camera == .restricted) {
                     Task { _ = await CameraRecorder.requestAccess(); camera = AVCaptureDevice.authorizationStatus(for: .video) }
                 }
@@ -137,7 +133,7 @@ struct PermissionsStep: View {
                 if granted {
                     Text("Allowed").foregroundStyle(.green).font(.subheadline)
                 } else if denied {
-                    Text("Turned off — enable in Settings → Driveby.").font(.subheadline).foregroundStyle(.orange)
+                    Text("Off. Enable in Settings → Driveby.").font(.subheadline).foregroundStyle(.orange)
                 } else {
                     Button("Allow") { request() }.buttonStyle(.borderedProminent).controlSize(.small)
                 }
@@ -159,7 +155,7 @@ struct ReadyStep: View {
                 VStack(alignment: .leading, spacing: 10) {
                     tip("Mount the phone in landscape")
                     tip("Tap Start before you drive")
-                    tip("Listen — Driveby speaks up")
+                    tip("Listen: Driveby speaks up")
                 }
                 SafetyPoints(mode: settings.driverMode)
                 AgreeCheckbox(agreed: $agreed)

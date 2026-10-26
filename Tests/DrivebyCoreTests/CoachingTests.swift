@@ -47,6 +47,23 @@ final class CoachingTests: XCTestCase {
         XCTAssertEqual(moments.filter { $0.eventId != nil }.count, a.events.count)
     }
 
+    func testTurningIntoASignedStreetIsNotAStopPass() throws {
+        let lat0 = 39.0294, lon0 = -77.4943, metresPerDegree = 111_195.0
+        let east = { (x: Double) in lon0 + x / (metresPerDegree * cos(lat0 * .pi / 180)) }
+        let main = DemoRoad(name: "Ashburn Farm Parkway", highway: "secondary", mph: 35)
+        let side = DemoRoad(name: "Golden Meadow Circle", highway: "residential", mph: 25)
+        let route = DemoRoute(points: [DemoPoint(lat: lat0, lon: east(0)), DemoPoint(lat: lat0, lon: east(900)),
+                                       DemoPoint(lat: lat0 + 1500 / metresPerDegree, lon: east(900))],
+                              segments: [DemoSegment(at: 0, road: main, control: .none), DemoSegment(at: 900, road: side, control: .none)])
+        let drive = DemoSynth.synthesize(DemoDriveScript(startedAt: Date(timeIntervalSince1970: 1_790_000_000), route: route,
+                                                         style: DemoStyle(), seed: 7))
+        let sign = OSMControl(id: 1, lat: lat0 + 8 / metresPerDegree, lon: east(900), kind: .stop, allWay: false, wayIds: [2])
+
+        let a = DriveAnalyzer.analyze(plan: try DriveAnalyzer.plan(log: drive.log), log: drive.log, vehicle: VehicleParams(),
+                                      ways: drive.ways, controls: [sign])
+        XCTAssertEqual(a.stopSigns?.map(\.outcome) ?? [], [], "the sign faces traffic leaving the side street, not entering it")
+    }
+
     func testSkillsOnScriptedDrive() throws {
         let (plan, log, ways) = try scenario()
         let a = DriveAnalyzer.analyze(plan: plan, log: log, vehicle: VehicleParams(), ways: ways)

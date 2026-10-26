@@ -95,7 +95,7 @@ enum FuelEconomyAPI {
         case offline, badResponse
         var errorDescription: String? {
             switch self {
-            case .offline: return "Couldn't reach fueleconomy.gov. Check your connection, or enter the car manually."
+            case .offline: return "Couldn't reach fueleconomy.gov. Enter the car manually."
             case .badResponse: return "fueleconomy.gov returned something unexpected."
             }
         }

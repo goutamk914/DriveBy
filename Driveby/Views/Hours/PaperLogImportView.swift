@@ -60,7 +60,7 @@ struct PaperLogImportView: View {
     private var sourceSection: some View {
         Section {
             if pages.isEmpty {
-                Text("Take a photo of your driving log and Driveby will count the hours. The photo stays on your phone and isn't saved.")
+                Text("Photograph your log to count the hours.")
                     .font(.subheadline)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -81,7 +81,7 @@ struct PaperLogImportView: View {
                 Text(pages.isEmpty ? "Choose from Photos" : "Choose different photos")
             }
         } footer: {
-            Text("Up to \(Self.maxPages) pages. Works best flat, in good light, with the hours column in view.")
+            Text("Up to \(Self.maxPages) pages, flat and well lit.")
         }
     }
 
@@ -100,7 +100,7 @@ struct PaperLogImportView: View {
         } header: {
             Text("Hours found")
         } footer: {
-            Text("Check these against your log and adjust if needed — you know it better than the camera does.")
+            Text("Check these against your log.")
         }
         .onChange(of: totalMinutes) { _, t in nightMinutes = min(nightMinutes, t) }
 
@@ -121,7 +121,7 @@ struct PaperLogImportView: View {
     }
 
     private func summary(_ e: PaperLog.Estimate) -> String {
-        if e.isEmpty { return "Couldn't find any hours in this photo. Enter them below, or try a clearer photo." }
+        if e.isEmpty { return "No hours found. Enter them below." }
         if e.fromWrittenTotal { return "Found the total written on your log." }
         return "Added up \(e.sessions.count) session\(e.sessions.count == 1 ? "" : "s") from your log."
     }

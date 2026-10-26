@@ -1,16 +1,3 @@
--- Driveby — Supabase schema (Build Guide, Day 2), extended for production use.
--- Run once in the Supabase SQL editor (Dashboard → SQL → New query → paste → Run). Idempotent.
---
--- Additions to the guide's schema, all additive:
---   * ON DELETE CASCADE from auth.users → in-app account deletion (App Store guideline 5.1.1(v))
---   * vehicles: epa_id, fuel_type, atv_type, regen_factor (hybrid/EV regenerative braking credit)
---   * drives.hazard_opt_in — users can keep their events out of the public map
---   * fuel_logs.filled_to_full — partial fills roll into the next full tank
---   * publish_hazard_cells() — the server function that is the ONLY writer of hazard_cells
---   * private storage bucket `clips` for opt-in blurred clip backup
-
-
--- ---------------------------------------------------------------- vehicles
 create table if not exists vehicles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade not null,
@@ -23,7 +10,6 @@ alter table vehicles add column if not exists fuel_type text;
 alter table vehicles add column if not exists atv_type text;
 alter table vehicles add column if not exists regen_factor numeric default 0;
 
--- ---------------------------------------------------------------- drives
 create table if not exists drives (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade not null,
@@ -34,22 +20,21 @@ create table if not exists drives (
   duration_s numeric,
   efficiency_score numeric,
   safety_score numeric,
-  fuel_gal numeric,          -- from OBD, null if unavailable
+  fuel_gal numeric,
   processed boolean default false
 );
 alter table drives add column if not exists hazard_opt_in boolean not null default true;
 create index if not exists drives_user_started_idx on drives (user_id, started_at desc);
 
--- ---------------------------------------------------------------- events
 create table if not exists events (
   id uuid primary key default gen_random_uuid(),
   drive_id uuid references drives on delete cascade,
-  t_offset_s numeric not null,  -- sensor-clock seconds since recording start (data contract `t`)
-  kind text not null,           -- hard_brake | hard_accel | harsh_corner | speeding | idle | lane_drift | tailgating
-  severity numeric,             -- 0..1
+  t_offset_s numeric not null,
+  kind text not null,
+  severity numeric,
   lat numeric, lon numeric,
   detail jsonb,
-  clip_path text                -- blurred clip in storage, nullable
+  clip_path text
 );
 create index if not exists events_drive_idx on events (drive_id);
 do $$ begin
@@ -57,7 +42,6 @@ do $$ begin
     check (kind in ('hard_brake','hard_accel','harsh_corner','speeding','idle','lane_drift','tailgating'));
 exception when duplicate_object then null; end $$;
 
--- ---------------------------------------------------------------- fuel_logs
 create table if not exists fuel_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade not null,
@@ -69,9 +53,6 @@ create table if not exists fuel_logs (
 );
 alter table fuel_logs add column if not exists filled_to_full boolean not null default true;
 
--- ---------------------------------------------------------------- practice_logs
--- Supervised learner's-permit hours (Virginia, under 18: 45 h, 15 after sunset). Private to the user.
--- drive_id has no foreign key: a session can be logged by hand, or its drive may not be uploaded.
 create table if not exists practice_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade not null,
@@ -85,10 +66,8 @@ create table if not exists practice_logs (
 );
 create index if not exists practice_logs_user_idx on practice_logs (user_id, started_at desc);
 
--- ---------------------------------------------------------------- hazard_cells
--- PUBLIC aggregate. No user_id column, by design.
 create table if not exists hazard_cells (
-  cell_key text primary key,     -- rounded lat_lon, e.g. 39.0450_-77.4875
+  cell_key text primary key,
   lat numeric, lon numeric,
   event_count int not null,
   distinct_users int not null,
@@ -96,8 +75,6 @@ create table if not exists hazard_cells (
   updated_at timestamptz default now()
 );
 
--- ---------------------------------------------------------------- Row Level Security
--- Users read and write only their own rows. hazard_cells is world-readable, written only by the server function.
 alter table vehicles enable row level security;
 alter table drives enable row level security;
 alter table events enable row level security;
@@ -131,10 +108,6 @@ create policy "hazard cells are public" on hazard_cells for select to anon, auth
 revoke insert, update, delete on hazard_cells from anon, authenticated;
 grant select on hazard_cells to anon, authenticated;
 
--- ---------------------------------------------------------------- k-anonymous hazard aggregation
--- Step 7.1: CELL = 0.0005° (≈55 m). A cell is published ONLY with ≥ 5 events from ≥ 3 distinct users.
--- Cell keys match the app (Hazard.swift) and the processor (hazard.py): round half-to-even on the
--- double value, then format with 4 decimals.
 create or replace function publish_hazard_cells(k_events int default 5, k_users int default 3)
 returns int
 language plpgsql
@@ -186,15 +159,10 @@ begin
   return n;
 end;
 $$;
--- updated_at is truncated to the DAY so it can't be used to re-identify a single trip.
 
 revoke all on function publish_hazard_cells(int, int) from public, anon;
 grant execute on function publish_hazard_cells(int, int) to authenticated;
 
--- Optional: refresh nightly instead of on every sync (Dashboard → Database → Extensions → enable pg_cron):
--- select cron.schedule('driveby-hazard-cells', '15 3 * * *', $$select publish_hazard_cells()$$);
-
--- ---------------------------------------------------------------- account deletion
 create or replace function delete_my_account()
 returns void
 language plpgsql
@@ -205,14 +173,13 @@ begin
   if auth.uid() is null then
     raise exception 'not signed in';
   end if;
-  delete from auth.users where id = auth.uid();   -- cascades to vehicles, drives → events, fuel_logs, practice_logs
-  perform publish_hazard_cells();                 -- drop any cell that no longer meets k
+  delete from auth.users where id = auth.uid();
+  perform publish_hazard_cells();
 end;
 $$;
 revoke all on function delete_my_account() from public, anon;
 grant execute on function delete_my_account() to authenticated;
 
--- ---------------------------------------------------------------- storage: blurred clips (opt-in)
 insert into storage.buckets (id, name, public)
 values ('clips', 'clips', false)
 on conflict (id) do nothing;

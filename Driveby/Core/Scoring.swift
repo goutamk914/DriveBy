@@ -40,11 +40,11 @@ struct EfficiencyComponents: Codable, Hashable, Sendable {
 
     static func explanation(_ key: String) -> String {
         switch key {
-        case "brake_waste": return "Energy you bought as fuel and then turned into brake heat. Coast earlier into stops."
-        case "idle_frac": return "Share of the drive spent stopped with the engine running."
-        case "jerk_rms": return "How abruptly your acceleration changes. Smooth pedal inputs score better."
-        case "high_speed": return "Time above 65 mph, where aerodynamic drag (∝ v²) dominates fuel use."
-        case "accel_waste": return "Acceleration beyond 1.5 m/s² (≈0.15 g) — fast starts burn extra fuel."
+        case "brake_waste": return "Fuel energy lost as brake heat."
+        case "idle_frac": return "Time stopped with the engine on."
+        case "jerk_rms": return "How abrupt your pedal inputs are."
+        case "high_speed": return "Time above 65 mph."
+        case "accel_waste": return "Starts harder than 0.15 g."
         default: return ""
         }
     }

@@ -1,9 +1,3 @@
-"""Phase 3 (efficiency score, validated against fuel) + Phase 5.3 (safety score, NOT validated).
-
-Physics (Step 3.1): fuel goes to aerodynamic drag (∝ v²), rolling resistance (∝ v), accelerating
-mass, and idling. Only braking is energy you bought and then threw away as heat.
-Mirrors Driveby/Core/Scoring.swift.
-"""
 from __future__ import annotations
 
 import json
@@ -18,12 +12,10 @@ from .events import runs
 
 
 def braking_intervals(df):
-    """Contiguous runs with a_long < -0.5 m/s² (drag + engine braking above that isn't waste)."""
     return runs(df.a_long.to_numpy() < C.BRAKING_INTERVAL_A)
 
 
 def braking_energy_per_km(df: pd.DataFrame, mass_kg: float, regen_factor: float = 0.0) -> float:
-    """Kinetic energy dissipated by braking, per km. Units: J/km."""
     km = df.distance_m.iloc[-1] / 1000 if len(df) else 0.0
     if km <= 0.01:
         return 0.0
@@ -40,7 +32,6 @@ def frac_time_above(df, threshold):
 
 
 def mean_positive_accel_above(df, threshold):
-    """Time-average of max(a_long − threshold, 0): captures how OFTEN and how HARD you launch."""
     return float(np.mean(np.maximum(df.a_long.to_numpy() - threshold, 0.0))) if len(df) else 0.0
 
 
@@ -50,10 +41,10 @@ def components(df: pd.DataFrame, mass_kg: float = 1500.0, regen_factor: float = 
     n = max(len(df), 1)
     jerk = np.gradient(a_long, dt) if len(df) > 1 else np.zeros(1)
     return {
-        "brake_waste": braking_energy_per_km(df, mass_kg, regen_factor),     # J/km
+        "brake_waste": braking_energy_per_km(df, mass_kg, regen_factor),
         "idle_frac": float(np.sum(df.v.to_numpy() < C.IDLE_SPEED) / n),
         "jerk_rms": float(np.sqrt(np.sum(jerk ** 2) / n)) if len(df) > 1 else 0.0,
-        "high_speed": frac_time_above(df, C.HIGH_SPEED),                    # 29 m/s ≈ 65 mph; drag ∝ v²
+        "high_speed": frac_time_above(df, C.HIGH_SPEED),
         "accel_waste": mean_positive_accel_above(df, C.ACCEL_WASTE_A),
     }
 
@@ -75,12 +66,10 @@ class ScoringModel:
         return out
 
     def efficiency_score(self, comp: dict) -> float:
-        """score = 100 · (1 − clip(Σ w[k]·norm[k], 0, 1))"""
         norm = self.normalized(comp)
         return 100 * (1 - float(np.clip(sum(self.weights.get(k, 0) * norm[k] for k in C.COMPONENT_KEYS), 0, 1)))
 
     def with_corpus(self, corpus: list[dict], min_n: int = 5) -> "ScoringModel":
-        """Normalise using p5/p95 across the whole drive corpus (fixed constants don't transfer between cars)."""
         if len(corpus) < min_n or self.source.startswith("fitted"):
             return self
         m = ScoringModel(dict(self.weights), dict(self.normalization), dict(self.safety), "corpus")
@@ -93,7 +82,6 @@ class ScoringModel:
         return m
 
     def to_json(self) -> str:
-        """Same shape as Swift's ScoringModel Codable — import it in the app (Settings → Scoring model)."""
         return json.dumps({
             "version": 1, "source": self.source, "weights": self.weights,
             "normalization": {k: {"p5": v[0], "p95": v[1]} for k, v in self.normalization.items()},
@@ -111,11 +99,6 @@ class ScoringModel:
 
 
 def safety_score(events, df: pd.DataFrame, coefficients: dict | None = None) -> dict:
-    """safety = 100 − 12·Σsev(hard_brake) − 14·tailgating_fraction − 6·Σsev(harsh_corner) − 15·speeding_fraction
-
-    Event sums are normalised per 10 miles; fractions are of moving time. Built from established
-    telematics thresholds — NOT validated (no crash data). Say so.
-    """
     c = coefficients or C.SAFETY_COEFFICIENTS
     dt = df.attrs.get("dt", 0.1)
     miles = max(df.distance_m.iloc[-1] / C.METRES_PER_MILE, 1.0) if len(df) else 1.0

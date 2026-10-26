@@ -25,6 +25,8 @@ final class RecordingController {
     private(set) var lastCue: LiveCueEvent?
     private(set) var speedLimitMps: Double?
     private(set) var voiceMuted = false
+    private(set) var demoClip: DemoClipPlayer?
+    private(set) var leadRect: CGRect?
 
     @ObservationIgnored let camera = CameraRecorder()
     @ObservationIgnored let sensors = SensorRecorder()
@@ -37,6 +39,7 @@ final class RecordingController {
     @ObservationIgnored private var t0: TimeInterval = 0
     @ObservationIgnored private var detector = LiveTripDetector()
     @ObservationIgnored private var sidecar: DriveSidecar?
+    @ObservationIgnored private var demoLimits: SpeedLimits.RoadIndex?
 
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let drives: DriveStore
@@ -60,7 +63,8 @@ final class RecordingController {
         }
         camera.onLiveStats = { [weak self] f, v, p, d in
             self?.faces = f; self?.vehicles = v; self?.plates = p; self?.leadDistance = d
-            self?.coachHeadway(leadDistance: d)
+            guard let self else { return }
+            self.coachHeadway(t: self.sensorTime, leadDistance: d)
         }
     }
 
@@ -79,6 +83,7 @@ final class RecordingController {
 
     func arm(vehicleId: UUID?, supervisor: String? = nil) {
         guard phase == .idle else { return }
+        if settings.isDemo { return start(vehicleId: vehicleId, supervisor: supervisor) }
         armedSupervisor = supervisor
         detector = LiveTripDetector()
         armedVehicleId = vehicleId
@@ -105,7 +110,7 @@ final class RecordingController {
             sensors.stopMonitoring()
             start(vehicleId: armedVehicleId)
         case (.recording, .parked):
-            if settings.autoStop { stop(reason: "Parked for 3 minutes — recording stopped automatically.") }
+            if settings.autoStop { stop(reason: "Parked 3 minutes. Recording stopped.") }
         default:
             break
         }
@@ -116,10 +121,14 @@ final class RecordingController {
         message = nil
         videoInterruptedReason = nil
         cameraError = nil
+        if settings.isDemo {
+            startDemoClip(vehicleId: vehicleId, supervisor: supervisor ?? armedSupervisor)
+            return
+        }
 
         let auth = sensors.authorization
         guard auth == .authorizedWhenInUse || auth == .authorizedAlways else {
-            message = "Location access is needed to record a drive. Enable it in Settings → Driveby → Location."
+            message = "Location is off. Enable it in Settings → Driveby."
             phase = .idle
             return
         }
@@ -127,7 +136,7 @@ final class RecordingController {
         var useCamera = settings.recordVideo && CameraRecorder.authorization == .authorized
         if useCamera && Storage.freeBytes() < 1_000_000_000 {
             useCamera = false
-            message = "Less than 1 GB free — recording sensors only (no video)."
+            message = "Under 1 GB free. Recording sensors only."
         }
         mode = useCamera ? .camera : .sensors
 
@@ -174,6 +183,71 @@ final class RecordingController {
         }
     }
 
+    private func startDemoClip(vehicleId: UUID?, supervisor: String?) {
+        sensors.stopMonitoring()
+        let drive = DemoClip.drive()
+        guard let clip = DemoClipPlayer(log: drive.log), let first = drive.log.gps.first else {
+            message = "The demo clip is missing from this build."
+            phase = .idle
+            return
+        }
+        mode = .camera
+        let folder = drives.nextFolderName()
+        let url = Storage.folder(folder)
+        do {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            driveId = UUID()
+            folderName = folder
+            let sensorName = "\(folder).jsonl"
+            let w = try SampleFileWriter(url: url.appendingPathComponent(sensorName))
+            writer = w
+            t0 = MonotonicClock.now()
+            let now = Date()
+            startedAt = now
+            let info = Bundle.main.infoDictionary
+            let side = DriveSidecar(driveId: driveId.uuidString.lowercased(), videoFile: "\(folder).mov", sensorFile: sensorName,
+                                    videoStartT: nil, vehicleId: vehicleId?.uuidString.lowercased(), device: DemoClip.device,
+                                    startedAt: now, appVersion: info?["CFBundleShortVersionString"] as? String,
+                                    recordingMode: mode.rawValue, supervisor: supervisor)
+            sidecar = side
+            try writeSidecar(side)
+            drives.add(DriveRecord(id: driveId, folder: folder, vehicleId: vehicleId, startedAt: now, hasVideo: true))
+            demoLimits = SpeedLimits.RoadIndex(ways: drive.ways, lat0: first.lat, lon0: first.lon)
+            detector = LiveTripDetector()
+            wire(clip)
+            demoClip = clip
+            clip.start(videoFile: url.appendingPathComponent("\(folder).mov"), sensorWriter: w, t0: t0)
+            UIApplication.shared.isIdleTimerDisabled = true
+            phase = .recording
+            startLiveCoaching()
+        } catch {
+            message = "Couldn't start the demo drive: \(error.localizedDescription)"
+            try? FileManager.default.removeItem(at: url)
+            phase = .idle
+        }
+    }
+
+    private func wire(_ clip: DemoClipPlayer) {
+        clip.onState = { [weak self] s in self?.live = s }
+        clip.onSpeed = { [weak self] t, v in self?.handleSpeed(t: t, speed: v) }
+        clip.onFix = { [weak self] t, fix in self?.coachFix(t: t, fix: fix) }
+        clip.onYawRate = { [weak self] t, yaw in self?.coachYaw(t: t, yawRate: yaw) }
+        clip.onVideoStarted = { [weak self] start, focal, w, h in
+            guard let self, var side = self.sidecar else { return }
+            side.videoStartT = start; side.focalPx = focal; side.videoWidth = w; side.videoHeight = h
+            self.sidecar = side
+            try? self.writeSidecar(side)
+        }
+        clip.onDetection = { [weak self] d in
+            guard let self else { return }
+            self.faces = d.faces; self.vehicles = d.vehicles; self.plates = d.plates
+            self.leadDistance = d.leadDistance
+            self.leadRect = d.leadRect
+            self.coachHeadway(t: d.t, leadDistance: d.leadDistance)
+        }
+        clip.onEnded = { [weak self] in self?.stop(reason: "Demo clip finished. Scoring it now.") }
+    }
+
     func stop(reason: String? = nil) {
         guard phase == .recording else { return }
         phase = .finishing
@@ -186,7 +260,9 @@ final class RecordingController {
         }
         sensors.stop()
         obd.stopLogging()
-        if mode == .camera {
+        if let clip = demoClip {
+            clip.stop { [weak self] summary in self?.finalize(summary) }
+        } else if mode == .camera {
             camera.endRecording { [weak self] summary in self?.finalize(summary) }
         } else {
             finalize(nil)
@@ -198,6 +274,9 @@ final class RecordingController {
         writer = nil
         UIApplication.shared.isIdleTimerDisabled = false
         camera.stopSession()
+        demoClip = nil
+        demoLimits = nil
+        leadRect = nil
 
         guard var side = sidecar, let folder = folderName else { phase = .idle; return }
         side.endedAt = Date()
@@ -266,8 +345,9 @@ final class RecordingController {
 
     private func coachFix(t: Double, fix: CLLocation) {
         guard phase == .recording, fix.speed >= 0 else { return }
-        let match = liveLimits.match(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude,
-                                     heading: fix.course >= 0 ? fix.course : .nan, speed: fix.speed)
+        let heading = fix.course >= 0 ? fix.course : .nan
+        let match = demoLimits?.match(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude, heading: heading, speed: fix.speed)
+            ?? liveLimits.match(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude, heading: heading, speed: fix.speed)
         speedLimitMps = match.tagged ? match.limitMps : nil
         deliver(coach.speed(t: t, v: fix.speed, limitMps: match.limitMps, posted: match.tagged))
     }
@@ -277,9 +357,9 @@ final class RecordingController {
         deliver(coach.yaw(t: t, yawRate: yawRate, v: live.speedMps))
     }
 
-    private func coachHeadway(leadDistance: Double?) {
+    private func coachHeadway(t: Double, leadDistance: Double?) {
         guard phase == .recording, mode == .camera else { return }
-        deliver(coach.headway(t: sensorTime, leadDistance: leadDistance, v: live.speedMps))
+        deliver(coach.headway(t: t, leadDistance: leadDistance, v: live.speedMps))
     }
 
     private func deliver(_ event: LiveCueEvent?) {

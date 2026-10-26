@@ -1,15 +1,3 @@
-"""Phase 2 — event detection: detect core runs → debounce → enrich.
-
-Thresholds (Build Guide Step 2.2, industry telematics values; tune on your own footage):
-    hard_brake    a_long < -3.0 m/s² sustained 0.5 s      severity -3 → 0, -6 → 1
-    hard_accel    a_long >  2.5 m/s² sustained 0.5 s      severity 2.5 → 0, 5 → 1
-    harsh_corner  |v · yaw_rate| > 3.0 m/s² sustained 0.5 s   severity 3 → 0, 6 → 1
-    speeding      v > limit + 4.5 m/s for ≥ 5 s           0.6·excess + 0.4·duration
-    idle          v < 0.5 m/s for > 60 s                  60 s → 0, 300 s → 1
-    tailgating    headway < 1.0 s sustained 3 s           1.0 s → 0, 0.4 s → 1
-Debounce: same-kind events within 2 s merge; a 5 s minimum gap between starts.
-Mirrors Driveby/Core/Events.swift (parity-tested).
-"""
 from __future__ import annotations
 
 import uuid
@@ -25,7 +13,7 @@ from .ingest import index_at
 def ramp(v, a, b):
     if a == b:
         return 1.0 if v >= b else 0.0
-    if v != v:  # NaN
+    if v != v:
         return 0.0
     return float(min(max((v - a) / (b - a), 0.0), 1.0))
 
@@ -46,7 +34,7 @@ def runs(mask):
 @dataclass
 class Event:
     kind: str
-    t_offset_s: float          # sensor time at event start
+    t_offset_s: float
     t_end_s: float
     t_peak_s: float
     severity: float
@@ -85,7 +73,6 @@ def _run_events(df, kind, mask, sustain, peak_score, severity):
 
 
 def headway(df: pd.DataFrame) -> np.ndarray:
-    """Time headway (s) = lead distance / speed; NaN when no lead or v < 5 m/s. Gaps ≤ 0.5 s bridged."""
     dt = df.attrs.get("dt", 0.1)
     n = len(df)
     h = np.full(n, np.nan)
@@ -120,7 +107,6 @@ def detect_raw(df: pd.DataFrame, limits: pd.DataFrame | None) -> list[Event]:
         ev += _run_events(df, "speeding", over > C.SPEEDING_MARGIN, C.SPEEDING_SUSTAIN, lambda i: over[i],
                           lambda i, d: 0.6 * ramp(over[i], C.SPEEDING_MARGIN, C.SPEEDING_FULL_EXCESS)
                           + 0.4 * min(max(d / 60, 0), 1))
-    # idle: > 60 s (strict), peak = middle of the run
     dt = df.attrs.get("dt", 0.1)
     t, lat, lon = df.t.to_numpy(), df.lat.to_numpy(), df.lon.to_numpy()
     for a, b in runs(v < C.IDLE_SPEED):
@@ -191,7 +177,6 @@ def enrich(e: Event, df: pd.DataFrame, limits: pd.DataFrame | None, mass_kg: flo
 
 
 def detect(df: pd.DataFrame, limits: pd.DataFrame | None = None, mass_kg: float = 1500.0) -> list[Event]:
-    """Full pipeline on a trip slice. `limits` from speedlimits.match(), or None when unavailable."""
     if len(df) < 2:
         return []
     raw = detect_raw(df, limits)
@@ -199,5 +184,4 @@ def detect(df: pd.DataFrame, limits: pd.DataFrame | None = None, mass_kg: float 
 
 
 def events_frame(events: list[Event]) -> pd.DataFrame:
-    """Timestamped event list — Phase 2 'done when'."""
     return pd.DataFrame([{**{k: v for k, v in asdict(e).items() if k != "detail"}, **e.detail} for e in events])

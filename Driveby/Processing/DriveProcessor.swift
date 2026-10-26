@@ -11,7 +11,8 @@ enum DriveProcessor {
     static let clipPre = 6.0
     static let clipPost = 6.0
 
-    static func process(folder: URL, sidecar: DriveSidecar, vehicle: VehicleParams, fetchSpeedLimits: Bool = true) async -> ProcessingOutcome {
+    static func process(folder: URL, sidecar: DriveSidecar, vehicle: VehicleParams, fetchSpeedLimits: Bool = true,
+                        knownMap: OverpassClient.MapData? = nil) async -> ProcessingOutcome {
         let sensorURL = folder.appendingPathComponent(sidecar.sensorFile)
         guard let data = try? Data(contentsOf: sensorURL) else { return .failed("The sensor log is missing.") }
         let log = SensorLogParser.parse(data)
@@ -21,16 +22,17 @@ enum DriveProcessor {
         do {
             plan = try DriveAnalyzer.plan(log: log)
         } catch DriveAnalyzer.Failure.noGPS(let fixes) {
-            return .failed("No usable GPS signal (\(fixes) good fixes). Driveby needs a sky view to score a drive.")
+            return .failed("No usable GPS signal (\(fixes) good fixes).")
         } catch DriveAnalyzer.Failure.neverMoved {
             return .discarded("The car never started moving.")
         } catch DriveAnalyzer.Failure.tooShort(let d, let s) {
-            return .discarded(String(format: "Trip too short to score (%.0f m, %.0f s — needs 500 m and 2 min).", d, s))
+            return .discarded(String(format: "Trip too short to score (%.0f m, %.0f s). Needs 500 m and 2 min.", d, s))
         } catch {
             return .failed(error.localizedDescription)
         }
 
-        let map = fetchSpeedLimits ? await OverpassClient.shared.mapData(for: plan.tiles) : nil
+        let fetched = knownMap == nil && fetchSpeedLimits ? await OverpassClient.shared.mapData(for: plan.tiles) : nil
+        let map = knownMap ?? fetched
         var analysis = DriveAnalyzer.analyze(plan: plan, log: log, vehicle: vehicle, ways: map?.ways, controls: map?.controls ?? [])
 
         if let videoName = sidecar.videoFile, let vStart = sidecar.videoStartT {

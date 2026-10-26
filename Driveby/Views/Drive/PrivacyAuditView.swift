@@ -12,19 +12,19 @@ struct PrivacyAuditView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Look at every frame. Is any face or licence plate readable? Tap a frame to flag it as a leak.")
+                Text("Tap any frame with a readable face or plate.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 if loading {
                     ProgressView("Sampling frames…").frame(maxWidth: .infinity).padding(.top, 40)
                 } else if frames.isEmpty {
-                    ContentUnavailableView { Text("No video") } description: { Text("This drive's full video was deleted or never recorded.") }
+                    ContentUnavailableView { Text("No video") } description: { Text("Deleted or never recorded.") }
                 } else {
                     Card {
                         let n = frames.count
                         Text("\(flagged.count) of \(n) frames flagged").font(.headline)
                         Text(flagged.isEmpty
-                             ? "No leaks found in this sample. Detector recall still isn't 100% — Driveby errs toward over-blurring."
-                             : String(format: "Observed leak rate %.0f%% on this sample. State it honestly; add a plate model to MLModels/ to improve recall.",
+                             ? "No leaks found in this sample."
+                             : String(format: "Leak rate %.0f%% on this sample.",
                                       Double(flagged.count) / Double(n) * 100))
                             .font(.footnote).foregroundStyle(.secondary)
                     }

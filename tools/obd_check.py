@@ -1,11 +1,3 @@
-"""Week 0 — "Test the OBD dongle. Which PIDs respond? Log the answer." (laptop version, python-OBD)
-
-    pip install obd
-    python tools/obd_check.py                 # auto-detect port (USB / Bluetooth serial on macOS/Linux)
-    python tools/obd_check.py /dev/tty.OBDII
-
-The iPhone app has the same check in Settings → OBD-II → "Test which PIDs respond" (BLE adapters).
-"""
 import sys
 
 import obd

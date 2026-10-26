@@ -1,4 +1,3 @@
-"""pytest for the Python processor.   Run:  python -m pytest processor/tests -q"""
 import json
 import subprocess
 from pathlib import Path
@@ -15,7 +14,6 @@ FIX = ROOT / "Tests/DrivebyCoreTests/Fixtures"
 
 @pytest.mark.parametrize("name", ["synth_drive", "synth_drive_noyaw"])
 def test_pipeline_reproduces_fixture(name):
-    """The checked-in expected.json (also asserted by the Swift tests) is reproducible from the raw data."""
     folder = FIX / name
     d = I.load_drive(folder, open_video=False)
     a = R.analyze(d, SL.parse_overpass((folder / "overpass.json").read_text()))
@@ -31,14 +29,13 @@ def test_scripted_manoeuvres_found():
     d = I.load_drive(FIX / "synth_drive", open_video=False)
     a = R.analyze(d, SL.parse_overpass((FIX / "synth_drive/overpass.json").read_text()))
     assert [e["kind"] for e in a["events"]] == ["hard_brake", "idle", "hard_accel", "harsh_corner", "speeding", "tailgating"]
-    assert d.log.malformed_lines == 1          # half-written last line skipped, not fatal
+    assert d.log.malformed_lines == 1
     assert a["obd_method"] == "fuel_rate" and a["obd_fuel_gal"] > 0
 
 
 def test_gps_accuracy_filter_drops_bad_fix():
     d = I.load_drive(FIX / "synth_drive", open_video=False)
     assert (d.log.gps.acc > C.MAX_GPS_ACCURACY).sum() == 1
-    # the bad fix was 0.001° (~110 m) off — the resampled track must not jump
     step = np.hypot(np.diff(d.df.lat) * 111_000, np.diff(d.df.lon) * 86_000)
     assert step.max() < 5
 

@@ -1,9 +1,3 @@
-"""Step 2.3 — speed limits from OpenStreetMap via Overpass, cached in SQLite.
-
-Query once per tile touched by the route; match each point (once per second) to the
-nearest way within 25 m whose direction agrees within 45°; fall back on the highway
-type when `maxspeed` is missing. Mirrors Driveby/Core/SpeedLimits.swift.
-"""
 from __future__ import annotations
 
 import json
@@ -26,7 +20,6 @@ DEFAULT_LIMITS_MPH = {
     "motorway": 65, "trunk": 55, "primary": 45,
     "secondary": 40, "tertiary": 35,
     "residential": 25, "unclassified": 30, "service": 15,
-    # extensions (not in the guide's table): link roads and living streets
     "motorway_link": 45, "trunk_link": 40, "primary_link": 35,
     "secondary_link": 30, "tertiary_link": 30, "living_street": 15,
 }
@@ -35,7 +28,6 @@ DRIVABLE = ("^(motorway|trunk|primary|secondary|tertiary|unclassified|residentia
 
 
 def parse_maxspeed(raw) -> float | None:
-    """OSM convention: bare number = km/h, '35 mph' = mph. Returns m/s."""
     if not raw:
         return None
     s = str(raw).lower().strip().split(";")[0].strip()
@@ -79,7 +71,7 @@ class Way:
     name: str | None
     ref: str | None
     oneway: str | None
-    geometry: list  # [[lat, lon], ...]
+    geometry: list
 
     @property
     def limit_mps(self):
@@ -110,8 +102,6 @@ def parse_overpass(payload: dict | str | bytes) -> list[Way]:
     return ways
 
 
-# ----------------------------------------------------------------------------- tiles + cache
-
 def tiles(lat, lon):
     pad = 0.0005
     s = set()
@@ -129,7 +119,6 @@ def tile_query(x: int, y: int) -> str:
 
 
 class OverpassCache:
-    """Overpass rate-limits and will refuse you mid-demo. Cache every tile in SQLite."""
 
     def __init__(self, path: str | Path = "data/overpass_cache.sqlite"):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -146,7 +135,6 @@ class OverpassCache:
 
 
 def fetch_ways(lat, lon, cache: OverpassCache | None = None, offline: bool = False) -> list[Way] | None:
-    """All ways for the route's tiles. Returns None if any tile is unavailable (→ speeding not analysed)."""
     import requests
     cache = cache or OverpassCache()
     ways: dict[int, Way] = {}
@@ -174,15 +162,12 @@ def fetch_ways(lat, lon, cache: OverpassCache | None = None, offline: bool = Fal
     return list(ways.values())
 
 
-# ----------------------------------------------------------------------------- matching
-
 def _heading_delta(a, b):
     d = abs((a - b) % 360.0)
     return 360 - d if d > 180 else d
 
 
 def match(df: pd.DataFrame, ways: list[Way]) -> pd.DataFrame:
-    """Per-sample limit_mps / road / tagged, evaluated once a second and forward-filled."""
     n = len(df)
     out = pd.DataFrame({"limit_mps": [np.nan] * n, "road": [None] * n, "tagged": [False] * n})
     if n == 0 or not ways:
@@ -193,7 +178,7 @@ def match(df: pd.DataFrame, ways: list[Way]) -> pd.DataFrame:
     ky = math.pi / 180 * 6_371_008.8
     kx = ky * math.cos(math.radians(lat0))
 
-    seg = []  # ax, ay, bx, by, way_index
+    seg = []
     for wi, w in enumerate(ways):
         g = np.asarray(w.geometry, float)
         xs, ys = (g[:, 1] - lon0) * kx, (g[:, 0] - lat0) * ky

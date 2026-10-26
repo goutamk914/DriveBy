@@ -4,6 +4,7 @@ import SwiftUI
 struct ValidationView: View {
     @Environment(AppModel.self) private var model
     @Environment(GarageStore.self) private var garage
+    @Environment(AppSettings.self) private var settings
     @State private var source: ValidationResult.Source = .tank
     @State private var includeLowCoverage = false
     @State private var fitMessage: String?
@@ -26,6 +27,14 @@ struct ValidationView: View {
         let r = result
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if settings.isDemo {
+                    Text("Demo data. Not real evidence.")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
                 Picker("Ground truth", selection: $source) {
                     Text("Fuel log").tag(ValidationResult.Source.tank)
                     Text("OBD-II").tag(ValidationResult.Source.obd)
@@ -40,10 +49,6 @@ struct ValidationView: View {
                     }
                 }
                 fitCard(r)
-                Card {
-                    Text("The efficiency score is validated against real fuel consumption. The safety score is not — it's built from established telematics thresholds, and validating it would require crash data we don't have access to.")
-                        .font(.footnote)
-                }
                 if source == .tank { tankTable }
             }
             .padding(16)
@@ -59,8 +64,8 @@ struct ValidationView: View {
             SectionHeader(title: "Efficiency score vs. real fuel economy", subtitle: r.source.rawValue)
             if r.points.isEmpty {
                 ContentUnavailableView { Text("No data yet") } description: { Text(source == .tank
-                                                         ? "Log every fill-up (fill to the first click). Each full tank becomes one point."
-                                                         : "Connect an OBD-II BLE adapter in Settings — every drive becomes a point.") }
+                                                         ? "Log every full fill-up."
+                                                         : "Connect an OBD-II adapter in Settings.") }
             } else {
                 Chart {
                     ForEach(r.points) { p in
@@ -95,9 +100,9 @@ struct ValidationView: View {
     private func explanation(_ r: ValidationResult) -> String {
         switch source {
         case .tank:
-            return "Each point is one tank: miles driven ÷ gallons to refill, against the distance-weighted average score of the drives on that tank. Grey points had less than half their miles recorded, so they're excluded from the fit."
+            return "One point per tank. Grey points are excluded."
         case .obd:
-            return "Each point is one drive: fuel measured by the car's own engine computer (OBD-II fuel rate, or air-flow ÷ 14.7) against that drive's score."
+            return "One point per drive, measured by OBD-II."
         }
     }
 
@@ -111,7 +116,7 @@ struct ValidationView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(fitRows().count < 6)
             if fitRows().count < 6 {
-                Text("Needs at least 6 \(source == .tank ? "tanks" : "OBD drives") — the notebook (notebooks/validation.ipynb) does the full analysis.")
+                Text("Needs at least 6 \(source == .tank ? "tanks" : "OBD drives").")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let fitMessage { Text(fitMessage).font(.footnote) }
@@ -144,18 +149,18 @@ struct ValidationView: View {
     private func fit() {
         let rows = fitRows()
         guard let m = Validation.fitWeights(rows: rows, base: model.model) else {
-            fitMessage = "The data didn't support any component (no negative relationship found). Keep collecting."
+            fitMessage = "No clear relationship yet. Keep collecting."
             return
         }
         model.setBaseModel(m)
-        fitMessage = String(format: "Fitted on n=%d, in-sample r²=%.2f. In-sample fits flatter you — say n out loud.", m.fitN ?? rows.count, m.fitR2 ?? 0)
+        fitMessage = String(format: "Fitted on n=%d, in-sample r²=%.2f.", m.fitN ?? rows.count, m.fitR2 ?? 0)
     }
 
     private var tankTable: some View {
         let drives = model.validationDrives(vehicleId: vehicle?.id)
         let intervals = Validation.tankIntervals(logs: garage.fuelLogs, drives: drives, vehicleId: vehicle?.id)
         return Card {
-            SectionHeader(title: "Tanks", subtitle: "Coverage = recorded miles ÷ odometer miles")
+            SectionHeader(title: "Tanks", subtitle: "Coverage: recorded ÷ odometer miles")
             if intervals.isEmpty { Text("Two full fill-ups make the first tank.").foregroundStyle(.secondary) }
             ForEach(intervals) { iv in
                 HStack {

@@ -1,11 +1,3 @@
-"""Regenerate the cross-language parity fixtures used by BOTH test suites.
-
-    python tools/make_fixtures.py
-
-Writes Tests/DrivebyCoreTests/Fixtures/{synth_drive, synth_drive_noyaw}/ (drive folder + overpass.json +
-expected.json computed by the PYTHON pipeline) and numerics.json (SciPy/NumPy reference values).
-The Swift tests then assert the app's on-device pipeline reproduces the Python results.
-"""
 import json
 import sys
 from pathlib import Path
@@ -16,8 +8,8 @@ from scipy.signal import savgol_filter
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from processor import ingest as I, run as R, speedlimits as SL, synth, hazard as H  # noqa: E402
-from processor.scoring import ScoringModel  # noqa: E402
+from processor import ingest as I, run as R, speedlimits as SL, synth, hazard as H
+from processor.scoring import ScoringModel
 
 FIX = ROOT / "Tests/DrivebyCoreTests/Fixtures"
 

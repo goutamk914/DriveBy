@@ -1,14 +1,3 @@
-"""Phase 3.3/3.4 — validate the efficiency score against real fuel data, and report it honestly.
-
-    python -m processor.validate --fuel data/fuel_log.csv --drives data/ --vehicle-epa 32 --out notebooks/out
-
-Fuel log CSV (Day 1): date, odometer, gallons, price_total, car_id   (optional: filled_to_full)
-Drive folders must already be processed (analysis.json from `python -m processor.run`).
-
-Outputs: validation.png (predicted vs actual, r² and n annotated), residuals.png,
-scoring_model.json (fitted weights — import into the app).
-Mirrors Driveby/Core/Validation.swift.
-"""
 from __future__ import annotations
 
 import argparse
@@ -29,7 +18,6 @@ def load_fuel_log(path) -> pd.DataFrame:
     rename = {"odometer": "odometer_mi", "date": "logged_at", "car_id": "vehicle_id"}
     df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
     df["logged_at"] = pd.to_datetime(df["logged_at"])
-    # a date with no time means "sometime that day" → noon (see docs/DATA_CONTRACT.md)
     no_time = df["logged_at"].dt.hour.eq(0) & df["logged_at"].dt.minute.eq(0)
     df.loc[no_time, "logged_at"] += pd.Timedelta(hours=12)
     if "filled_to_full" not in df.columns:
@@ -51,7 +39,6 @@ def load_processed_drives(root) -> pd.DataFrame:
 
 
 def tank_intervals(fuel: pd.DataFrame, drives: pd.DataFrame) -> pd.DataFrame:
-    """Tank-to-tank MPG between consecutive FULL fills; partial fills roll forward into the next full."""
     out = []
     last_full, pending = None, 0.0
     for _, r in fuel.iterrows():
@@ -69,7 +56,7 @@ def tank_intervals(fuel: pd.DataFrame, drives: pd.DataFrame) -> pd.DataFrame:
             row = {"start": last_full.logged_at, "end": r.logged_at, "odometer_miles": miles, "gallons": pending,
                    "mpg": miles / pending, "recorded_miles": rec, "coverage": min(rec / miles, 1.0), "n_drives": len(inside)}
             if rec > 0:
-                for k in C.COMPONENT_KEYS:  # distance-weighted mean of each component (Step 3.3, without OBD)
+                for k in C.COMPONENT_KEYS:
                     row[k] = float((inside[k] * inside.miles).sum() / rec)
             out.append(row)
         last_full, pending = r, 0.0
@@ -77,7 +64,6 @@ def tank_intervals(fuel: pd.DataFrame, drives: pd.DataFrame) -> pd.DataFrame:
 
 
 def fit_weights(rows: pd.DataFrame, target: np.ndarray, base: ScoringModel, ridge_lambda: float = 0.5) -> ScoringModel | None:
-    """Regress target on normalised components; negate and rescale coefficients into weights (sum = 1)."""
     if len(rows) < 6:
         return None
     X = np.array([[base.normalized(r)[k] for k in C.COMPONENT_KEYS] for r in rows[list(C.COMPONENT_KEYS)].to_dict("records")])
@@ -150,7 +136,6 @@ def main(argv=None):
     drives = load_processed_drives(a.drives)
     base = base.with_corpus(drives[list(C.COMPONENT_KEYS)].to_dict("records")) if len(drives) else base
 
-    # Prefer per-trip OBD fuel (hundreds of points) over tank-to-tank (≈9 points).
     obd = drives.dropna(subset=["obd_fuel_gal"]) if "obd_fuel_gal" in drives else drives.iloc[0:0]
     obd = obd[obd.obd_fuel_gal > 0.01] if len(obd) else obd
     if len(obd) >= 10:

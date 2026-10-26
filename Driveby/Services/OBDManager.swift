@@ -38,7 +38,7 @@ final class OBDManager {
         case .state(let s):
             switch s {
             case .poweredOff: phase = .error("Bluetooth is off")
-            case .unauthorized: phase = .error("Bluetooth permission is off — Settings → Driveby → Bluetooth")
+            case .unauthorized: phase = .error("Bluetooth is off for Driveby. Enable it in Settings.")
             case .unsupported: phase = .unsupported
             case .poweredOn: if phase == .off || phase == .unsupported { phase = .off }
             default: break
@@ -132,7 +132,7 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
         queue.async {
             guard self.central.state == .poweredOn else { self.pendingConnect = id; return }
             let p = self.peripherals[id] ?? self.central.retrievePeripherals(withIdentifiers: [id]).first
-            guard let p else { self.onEvent?(.disconnected("Adapter not found — scan again")); return }
+            guard let p else { self.onEvent?(.disconnected("Adapter not found. Scan again.")); return }
             self.central.stopScan()
             self.peripheral = p
             p.delegate = self
@@ -160,7 +160,7 @@ final class ELMLink: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @
     func testPIDs() {
         queue.async {
             guard self.writeChar != nil else { self.onEvent?(.log("Not connected")); return }
-            guard !self.polling, self.pending == nil else { self.onEvent?(.log("Busy logging a drive — test after it ends")); return }
+            guard !self.polling, self.pending == nil else { self.onEvent?(.log("Busy logging a drive. Test after it ends.")); return }
             self.querySupport { sup in
                 self.supported = sup
                 self.onEvent?(.ready(sup))

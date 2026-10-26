@@ -1,13 +1,3 @@
-"""Phase 5 — following distance (the one CV feature we ship; lane detection and traffic lights → 2.0).
-
-The iOS app runs this on-device in real time and logs `lead` samples into sensors.jsonl.
-This module recomputes it offline from (already blurred) video — for imported dashcam footage,
-for tuning, and to render annotated demo clips ("1.2 s behind").
-
-focal_px: the app reads the factory-calibrated intrinsic matrix from AVFoundation and stores it
-in drive.json. To verify it (or for a separate dashcam) run tools/calibrate_camera.py on ~20
-checkerboard photos — do not guess from spec-sheet FOV; you'll be off by 20%.
-"""
 from __future__ import annotations
 
 import json
@@ -26,12 +16,11 @@ def vehicle_model():
     global _vehicle_model
     if _vehicle_model is None:
         from ultralytics import YOLO
-        _vehicle_model = YOLO("yolov8n.pt")  # classes 2,5,7 = car, bus, truck
+        _vehicle_model = YOLO("yolov8n.pt")
     return _vehicle_model
 
 
 def lead_vehicle_box(frame, lane_frac: float = 0.15):
-    """Largest-in-lane vehicle box (x1, y1, x2, y2) or None. 'In lane' = centre within 15% of frame centre."""
     dets = vehicle_model()(frame, verbose=False)[0].boxes
     best = None
     for b in dets:
@@ -40,14 +29,13 @@ def lead_vehicle_box(frame, lane_frac: float = 0.15):
         x1, y1, x2, y2 = b.xyxy[0].tolist()
         cx = (x1 + x2) / 2
         if abs(cx - frame.shape[1] / 2) > lane_frac * frame.shape[1]:
-            continue                         # not in our lane
+            continue
         if best is None or (x2 - x1) > (best[2] - best[0]):
-            best = (x1, y1, x2, y2)          # widest = nearest
+            best = (x1, y1, x2, y2)
     return best
 
 
 def lead_vehicle_distance(frame, focal_px, real_width_m=C.VEHICLE_REAL_WIDTH):
-    """Pinhole model: distance = real_width × focal_px / box_width_px. Build Guide Step 5.2."""
     box = lead_vehicle_box(frame)
     if box is None:
         return None
@@ -56,12 +44,10 @@ def lead_vehicle_distance(frame, focal_px, real_width_m=C.VEHICLE_REAL_WIDTH):
 
 
 def time_headway(distance_m, speed_mps):
-    """< 2.0 s = close, < 1.0 s = tailgating (require 3 s sustained — see events.py)."""
     return distance_m / speed_mps if speed_mps and speed_mps > 0.5 else None
 
 
 def lead_samples_from_video(video_index, focal_px, every_s=0.2) -> pd.DataFrame:
-    """Offline equivalent of the app's live vision pass. Returns rows shaped like `lead` JSONL samples."""
     rows = []
     for t, frame in video_index.iter_frames(every_s):
         box = lead_vehicle_box(frame)
@@ -75,8 +61,6 @@ def lead_samples_from_video(video_index, focal_px, every_s=0.2) -> pd.DataFrame:
 
 
 def annotate_clip(video_index, df: pd.DataFrame, t0: float, t1: float, out_path: str | Path, focal_px: float):
-    """Render a demo clip with the lead-vehicle box and live headway. Input video is already blurred;
-    frames are still written through blur.write_redacted_frames (redact() on every frame, no bypass)."""
     from .blur import write_redacted_frames
     frames = []
     for t in np.arange(t0, t1, 1 / 15):

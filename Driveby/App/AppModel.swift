@@ -18,6 +18,7 @@ final class AppModel {
     private(set) var processing: Set<UUID> = []
     var toast: String?
     var quickStartPending: Bool
+    var demoLoading = false
     var reflectionDriveId: UUID?
     @ObservationIgnored private var awaitingReflection: Set<UUID> = []
 
@@ -52,6 +53,7 @@ final class AppModel {
     }
 
     func bootstrap() async {
+        await loadDemoFromLaunchArgument()
         for r in recorder.recoverInterruptedDrives() { enqueue(r.id) }
         for r in drives.records where !r.processed && r.processingError == nil && r.endedAt != nil { enqueue(r.id) }
         drives.pruneOldVideos(olderThanDays: settings.keepFullVideoDays)
@@ -94,7 +96,9 @@ final class AppModel {
         defer { processing.remove(id) }
         let folder = drives.folderURL(r)
         let vehicle = garage.vehicle(r.vehicleId)?.params ?? VehicleParams()
-        let outcome = await DriveProcessor.process(folder: folder, sidecar: side, vehicle: vehicle)
+        let demoMap = side.device == DemoClip.device ? DemoClip.drive() : nil
+        let outcome = await DriveProcessor.process(folder: folder, sidecar: side, vehicle: vehicle,
+                                                   knownMap: demoMap.map { OverpassClient.MapData(ways: $0.ways, controls: $0.controls) })
         switch outcome {
         case .processed(let analysis):
             do {
@@ -115,7 +119,7 @@ final class AppModel {
                 logPracticeHours(record: rec, analysis: analysis, supervisor: side.supervisor)
                 if awaitingReflection.remove(id) != nil { reflectionDriveId = id }
                 if !analysis.speedLimitsAvailable {
-                    toast = "Drive scored. Speed limits weren't available (offline?) — retry from the drive's page."
+                    toast = "Drive scored without speed limits. Retry from the drive."
                 }
             } catch {
                 markFailed(r, "Couldn't save results: \(error.localizedDescription)")
@@ -130,7 +134,7 @@ final class AppModel {
         if sync.isSignedIn { await sync.syncNow() }
     }
 
-    private func logPracticeHours(record r: DriveRecord, analysis a: DriveAnalysis, supervisor: String?) {
+    func logPracticeHours(record r: DriveRecord, analysis a: DriveAnalysis, supervisor: String?) {
         guard practiceLog.entry(forDrive: r.id) == nil, !practiceLog.removedDrives.contains(r.id), a.durationS >= 60 else { return }
         let start = r.startedAt.addingTimeInterval(a.tripStartT)
         let end = start.addingTimeInterval(a.durationS)

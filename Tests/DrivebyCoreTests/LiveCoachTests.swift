@@ -155,8 +155,36 @@ final class LiveCoachTests: XCTestCase {
         _ = coach.speed(t: 0, v: over, limitMps: limit, posted: false)
         let cue = coach.speed(t: 5, v: over, limitMps: limit, posted: false)
         XCTAssertEqual(cue?.cue, .speeding)
-        XCTAssertNil(cue?.limitMph, "a highway-type default isn't a posted limit — say \"Watch your speed\" instead")
-        XCTAssertEqual(LiveCue.speeding.phrase(mode: .regular, limitMph: cue?.limitMph), "Watch your speed.")
+        XCTAssertNil(cue?.limitMph, "a highway-type default isn't a posted limit, say \"Watch your speed\" instead")
+        XCTAssertEqual(LiveCue.speeding.phrase(mode: .regular, limitMph: cue?.limitMph), "You're speeding. Slow down.")
+    }
+
+    func testSpeedingIsSpokenInsteadOfTailgatingWhileOverTheLimit() {
+        var coach = LiveCoach(mode: .newDriver)
+        let limit = 40 / Units.mpsToMph
+        let over = limit + Thresholds.speedingMargin + 1
+        var cues: [LiveCue] = []
+        for t in 0...6 {
+            if let c = coach.speed(t: Double(t), v: over, limitMps: limit) { cues.append(c.cue) }
+            if let c = coach.headway(t: Double(t) + 0.5, leadDistance: 8, v: over) { cues.append(c.cue) }
+        }
+        XCTAssertEqual(cues, [.speeding])
+    }
+
+    func testOwnHoodIsNotTheCarAhead() {
+        XCTAssertTrue(Thresholds.isOwnHood(minY: 0.01, width: 0.99))
+        XCTAssertTrue(Thresholds.isOwnHood(minY: 0.02, width: 0.8))
+        XCTAssertFalse(Thresholds.isOwnHood(minY: 0.40, width: 0.11))
+        XCTAssertFalse(Thresholds.isOwnHood(minY: 0.20, width: 0.6))
+        XCTAssertFalse(Thresholds.isOwnHood(minY: 0.01, width: 0.2))
+    }
+
+    func testSpeedingPhraseTellsYouToSlowDown() {
+        for mode in [DriverMode.regular, .newDriver] {
+            XCTAssertEqual(LiveCue.speeding.phrase(mode: mode, limitMph: 40), "You're speeding. Slow down to 40.")
+            XCTAssertEqual(LiveCue.speeding.phrase(mode: mode, limitMph: nil), "You're speeding. Slow down.")
+        }
+        XCTAssertEqual(LiveCue.speeding.shortText(limitMph: 40), "Slow down to 40")
     }
 
     func testCameraGapResetsTailgating() {

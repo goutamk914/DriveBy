@@ -15,6 +15,7 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
+                    if let demo = settings.demoProfile { demoBadge(demo) }
                     startCard
                     if settings.isNewDriver {
                         hoursCard
@@ -61,6 +62,15 @@ struct HomeView: View {
         guard let p = pendingStart else { return }
         pendingStart = nil
         begin(supervisor: p.supervisor, auto: p.auto)
+    }
+
+    private func demoBadge(_ demo: DemoProfile) -> some View {
+        Text("Demo data · \(demo.person), \(demo.title.lowercased())")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Color.orange.opacity(0.14), in: Capsule())
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var startCard: some View {
@@ -161,7 +171,7 @@ struct HomeView: View {
             }
             if drives.records.isEmpty {
                 Card {
-                    Text("No drives yet. Mount the phone, tap Start drive, and go.")
+                    Text("No drives yet.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             } else {

@@ -107,8 +107,8 @@ struct HazardMapView: View {
             }
             .font(.caption.weight(.semibold))
             Text(sync.isConfigured
-                 ? "A cell is published only with ≥\(Thresholds.kEvents) hard-braking/sharp-turn events from ≥\(Thresholds.kUsers) different drivers (k-anonymity). Counts only — no names, no trip times."
-                 : "Cloud isn't configured in this build, so only your own (private) cells show. Published cells need ≥\(Thresholds.kEvents) events from ≥\(Thresholds.kUsers) drivers.")
+                 ? "Published at ≥\(Thresholds.kEvents) events from ≥\(Thresholds.kUsers) drivers."
+                 : "Cloud is off. Only your cells show.")
                 .font(.caption2).foregroundStyle(.secondary)
             if let err = sync.hazardError { Text(err).font(.caption2).foregroundStyle(.orange) }
         }
@@ -160,14 +160,14 @@ private struct CellDetail: View {
             case .published(let c):
                 Text("Published hazard cell").foregroundStyle(.red).font(.headline)
                 Text(c.summary).font(.title3.weight(.semibold))
-                Text("Pooled, anonymised data from everyone who opted in. Cell \(c.cellKey) (≈55 m square).")
+                Text("Anonymous, pooled data. ≈55 m cell.")
                     .font(.footnote).foregroundStyle(.secondary)
             case .mine(let c):
                 Text("Your contribution (private)").foregroundStyle(.blue).font(.headline)
                 let hb = c.kindCounts[.hardBrake] ?? 0, hc = c.kindCounts[.harshCorner] ?? 0
                 Text("\(c.eventCount) event\(c.eventCount == 1 ? "" : "s") here across \(c.driveCount) of your drives (\(hb) hard braking, \(hc) sharp turns).")
                     .font(.title3.weight(.semibold))
-                Text("This cell can be published only when at least \(Thresholds.kEvents) events from at least \(Thresholds.kUsers) different drivers land in it. Your data alone can never publish a cell — that's the point.")
+                Text("Publishes at \(Thresholds.kEvents) events from \(Thresholds.kUsers) drivers.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             HStack {
@@ -190,14 +190,13 @@ struct HazardExplainer: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Your data stays yours. But stripped of everything identifying and pooled together, it becomes a map of the intersections where drivers brake hardest — something a county traffic engineer could actually act on.")
+                    Text("Where drivers brake hardest, pooled anonymously.")
                         .font(.title3.weight(.semibold))
-                    explainer("1. Private by default", "Every drive is stored on your phone. If you sign in, only numbers (scores and event locations) sync to your private account — protected so only you can read them.")
-                    explainer("2. Pooled into ≈55 m cells", "Hard-braking and sharp-turn events are rounded into grid cells about 55 metres across.")
-                    explainer("3. k-anonymity", "A cell is published only when it has at least \(Thresholds.kEvents) events from at least \(Thresholds.kUsers) different drivers. The public table stores counts — never a user ID, never a trip time.")
-                    explainer("4. Shareable with the people who can fix it", "Export the published cells as GeoJSON — the format county traffic engineering and VDOT GIS tools already use.")
-                    explainer("Honest about scale", "Right now most of this is our own driving. The point is the architecture: at scale, it's a map no individual driver could produce, built from data no individual driver had to surrender.")
-                    explainer("Opt out any time", "Settings → Privacy → Contribute to the hazard map.")
+                    explainer("1. Private by default", "Drives stay on your phone. Synced numbers are private.")
+                    explainer("2. Pooled into ≈55 m cells", "Hard brakes and sharp turns are rounded to a grid.")
+                    explainer("3. k-anonymity", "Published at ≥\(Thresholds.kEvents) events from ≥\(Thresholds.kUsers) drivers. Counts only.")
+                    explainer("4. Shareable", "Export as GeoJSON for county and VDOT tools.")
+                    explainer("Opt out any time", "Settings → Privacy.")
                 }
                 .padding(20)
             }

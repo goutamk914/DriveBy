@@ -250,6 +250,12 @@ enum Thresholds {
     static let tailgateMinSpeed = 5.0
     static let tailgateFullHeadway = 0.4
     static let vehicleRealWidth = 1.8
+    static let hoodBottomMargin = 0.05
+    static let hoodMinWidth = 0.5
+
+    static func isOwnHood(minY: Double, width: Double) -> Bool {
+        minY < hoodBottomMargin && width > hoodMinWidth
+    }
 
     static let brakingIntervalA = -0.5
     static let highSpeed = 29.0

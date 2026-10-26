@@ -40,18 +40,18 @@ struct ValidationResult: Sendable {
 
     var honestSummary: String {
         guard let fit else {
-            return n < 3 ? "n=\(n) — not enough data yet. Keep logging every fill-up." : "n=\(n) — no linear relationship could be fitted."
+            return n < 3 ? "n=\(n): not enough data yet." : "n=\(n): no fit yet."
         }
         let r2 = String(format: "%.2f", fit.r2)
-        let direction = fit.slope > 0 ? "higher scores go with better fuel economy" : "the relationship runs the wrong way — investigate"
+        let direction = fit.slope > 0 ? "higher scores, better mpg" : "wrong direction, investigate"
         let strength: String
         switch (n, fit.r2) {
-        case (..<8, _): strength = "too few points to conclude anything"
+        case (..<8, _): strength = "too few points"
         case (_, ..<0.25): strength = "weak"
         case (_, ..<0.5): strength = "moderate"
-        default: strength = n < 20 ? "suggestive — the obvious next step is more data" : "strong"
+        default: strength = n < 20 ? "suggestive, needs more data" : "strong"
         }
-        return "n=\(n), r²=\(r2) — \(strength); \(direction)."
+        return "n=\(n), r²=\(r2): \(strength); \(direction)."
     }
 }
 
@@ -102,7 +102,7 @@ enum Validation {
             guard let c = iv.meanComponents else { continue }
             let target = epaCombined.map { iv.mpg / $0 } ?? iv.mpg
             points.append(ValidationPoint(id: iv.end.id.uuidString, score: model.efficiencyScore(c), target: target,
-                                          label: "\(df.string(from: iv.start.loggedAt))–\(df.string(from: iv.end.loggedAt))",
+                                          label: "\(df.string(from: iv.start.loggedAt)) - \(df.string(from: iv.end.loggedAt))",
                                           lowCoverage: iv.coverage < minCoverage))
         }
         let used = points.filter { !$0.lowCoverage }

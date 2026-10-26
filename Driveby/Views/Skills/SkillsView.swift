@@ -16,7 +16,7 @@ struct SkillsView: View {
                     skillsCard
                     practiceCard
                     NavigationLink { TrendsView() } label: {
-                        linkCard(title: "Score trends", detail: "Daily safety and efficiency, streaks and totals")
+                        linkCard(title: "Score trends", detail: "Daily scores and streaks")
                     }
                     .buttonStyle(.plain)
                     NavigationLink { ValidationView() } label: {
@@ -54,8 +54,8 @@ struct SkillsView: View {
                 ScoreRing(title: "Safety score", score: averageSafety, tint: Theme.safety, size: 104)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(safetyHeadline).font(.headline)
-                    Text(recent.isEmpty ? "Record a supervised drive to get your first score."
-                                        : "Average of your last \(recent.count) drive\(recent.count == 1 ? "" : "s"), weighted by distance. 100 = no coaching events.")
+                    Text(recent.isEmpty ? "Record a drive to get a score."
+                                        : "Last \(recent.count) drive\(recent.count == 1 ? "" : "s")")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -65,17 +65,17 @@ struct SkillsView: View {
     private var safetyHeadline: String {
         guard let s = averageSafety else { return "No score yet" }
         switch s {
-        case 90...: return "Excellent — keep it up"
+        case 90...: return "Excellent, keep it up"
         case 80..<90: return "Solid, a few things to polish"
         case 70..<80: return "Getting there"
-        default: return "Lots to practise — that's what permits are for"
+        default: return "Lots to practise"
         }
     }
 
     private var skillsCard: some View {
         let now = current, before = previous
         return Card {
-            SectionHeader(title: "Skills", subtitle: "Last \(min(recent.count, window)) drives · tap a skill for what it means")
+            SectionHeader(title: "Skills", subtitle: "Last \(min(recent.count, window)) drives · tap for drills")
             ForEach(Skill.allCases) { skill in
                 VStack(alignment: .leading, spacing: 6) {
                     Button {
@@ -113,8 +113,7 @@ struct SkillsView: View {
         let timeBased = skill == .speedControl || skill == .followingDistance
         if s.total < skill.minimumTotal {
             let need = timeBased ? "\(Int(skill.minimumTotal / 60)) minute of data" : "\(Int(skill.minimumTotal)) \(skill.unit)"
-            if skill == .followingDistance { return "Not enough time behind other cars yet (needs \(need) with the camera on)." }
-            if skill == .stopSigns { return "Not enough mapped stop signs yet (needs \(need))." }
+            if skill == .followingDistance { return "Not enough data yet (needs \(need), camera on)." }
             return "Not enough data yet (needs \(need))."
         }
         if timeBased {
@@ -133,7 +132,7 @@ struct SkillsView: View {
             SectionHeader(title: "What to practise next", subtitle: settings.driverMode == .newDriver ? "Step-by-step drills" : nil)
             let plan = model.practicePlan()
             if plan.isEmpty {
-                Text("Record a few drives and Driveby will suggest what to work on.").font(.subheadline).foregroundStyle(.secondary)
+                Text("Record a few drives for suggestions.").font(.subheadline).foregroundStyle(.secondary)
             }
             ForEach(plan) { f in
                 VStack(alignment: .leading, spacing: 6) {
@@ -151,7 +150,7 @@ struct SkillsView: View {
                 }
                 .padding(.vertical, 2)
             }
-            Text("Practise drills only with your supervising driver, and check them with your instructor.")
+            Text("Practise only with your supervising driver.")
                 .font(.caption2).foregroundStyle(.secondary)
         }
     }

@@ -1,14 +1,3 @@
-"""Apply Driveby's build settings to the Xcode 26 project template (idempotent).
-
-    python3 tools/patch_xcodeproj.py
-
-- iOS 17.0 deployment target (runs on iPhone XS/XR and later, not just iOS 26 devices)
-- iPhone only (it's a dashcam app)
-- Swift 5 language mode with classic concurrency defaults (no implicit MainActor-by-default);
-  UI classes are explicitly @MainActor, capture/vision run on their own serial queues.
-- Merges Driveby-Info.plist (usage strings, background modes) into the generated Info.plist
-- Adds the "Privacy Lint" build phase that fails the build if video is written outside the redacting writer
-"""
 import re
 import sys
 from pathlib import Path
@@ -49,7 +38,6 @@ def main():
         s = re.sub(rf"\n\t+{key} = [^;]+;", "", s)
     s = s.replace('TARGETED_DEVICE_FAMILY = "1,2";', "TARGETED_DEVICE_FAMILY = 1;")
 
-    # Target-level additions (the target configs are the ones with ASSETCATALOG_COMPILER_APPICON_NAME).
     additions = {
         "INFOPLIST_FILE": '"Driveby-Info.plist"',
         "INFOPLIST_KEY_CFBundleDisplayName": "Driveby",
@@ -67,7 +55,6 @@ def main():
         return block
     s = re.sub(r"buildSettings = \{\n\t+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;.*?\n\t+\};", add_settings, s, flags=re.S)
 
-    # Privacy Lint build phase
     if LINT_ID not in s:
         s = s.replace("/* Begin PBXSourcesBuildPhase section */",
                       "/* Begin PBXShellScriptBuildPhase section */\n" + LINT_PHASE +

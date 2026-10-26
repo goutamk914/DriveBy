@@ -8,8 +8,8 @@ enum DriverMode: String, Codable, CaseIterable, Identifiable, Sendable {
     var title: String { self == .newDriver ? "New driver" : "Regular driver" }
     var summary: String {
         switch self {
-        case .regular: return "Short spoken tips while you drive and a clear score after. Only significant issues are flagged."
-        case .newDriver: return "Learner's-permit mode: supervised-hours log, a pre-drive checklist, encouraging voice tips and every moment explained."
+        case .regular: return "Spoken tips while you drive, a score after."
+        case .newDriver: return "Permit hours log, checklist and step-by-step coaching."
         }
     }
 }
@@ -37,12 +37,12 @@ enum Skill: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var definition: String {
         switch self {
-        case .smoothBraking: return "Share of your slow-downs that were gentle (under 0.22 g)."
-        case .smoothAcceleration: return "Share of your speed-ups that were gentle (under 0.2 g)."
-        case .turns: return "Share of your turns taken without heavy sideways force (under 0.25 g)."
-        case .speedControl: return "Share of driving time within 5 mph of the speed limit."
-        case .followingDistance: return "Share of time behind another car with at least a 2-second gap."
-        case .stopSigns: return "Share of stop signs where you came to a full stop."
+        case .smoothBraking: return "Gentle slow-downs (under 0.22 g)."
+        case .smoothAcceleration: return "Gentle speed-ups (under 0.2 g)."
+        case .turns: return "Turns under 0.25 g of sideways force."
+        case .speedControl: return "Time within 5 mph of the limit."
+        case .followingDistance: return "Time with at least a 2-second gap."
+        case .stopSigns: return "Stop signs with a full stop."
         }
     }
 
@@ -192,7 +192,7 @@ enum StopSignAnalyzer {
                 for i in a...b where d[i] < d[k] { k = i }
                 let approached = d[a] - d[k] >= 8 || a == 0
                 let ways = (a...k).compactMap { limits[$0].wayId }
-                let onSignedRoad = ways.contains { c.wayIds.contains($0) }
+                let onSignedRoad = ways.first.map { c.wayIds.contains($0) } ?? false
                 guard approached, onSignedRoad else { continue }
                 let lo = max(a - Int((8 / s.dt).rounded()), 0)
                 let hi = min(k + Int((1 / s.dt).rounded()), s.count - 1)
@@ -225,7 +225,7 @@ enum MomentKind: String, Codable, Sendable {
         case .smoothStop: return "Smooth stop"
         case .smoothTurn: return "Smooth turn"
         case .rollingStop: return "Rolling stop"
-        case .missedStop: return "Stop sign — flagged for review"
+        case .missedStop: return "Stop sign flagged for review"
         default: return EventKind(rawValue: rawValue)?.title ?? rawValue
         }
     }
@@ -293,24 +293,24 @@ enum MomentBuilder {
             switch p.outcome {
             case .fullStop:
                 if p.approachPeakDecel > SkillThresholds.smoothBrakeA {
-                    m.headline = "Good stop sign approach — \(into(p.t)) into your drive"
+                    m.headline = "Good stop sign approach, \(into(p.t)) into your drive"
                     m.body = "You eased from \(from) mph to a full stop at the stop sign\(at(p.road))."
-                    m.tip = "This is exactly it: slow early, stop completely, then look left-right-left."
+                    m.tip = "Slow early, stop fully, look left-right-left."
                 } else {
-                    m.headline = "Full stop at the stop sign — \(into(p.t)) into your drive"
-                    m.body = "You stopped completely at the stop sign\(at(p.road)) — but the braking at the end was firm."
-                    m.tip = "Start slowing about 5 car-lengths earlier so the stop is gentle too."
+                    m.headline = "Full stop at the stop sign, \(into(p.t)) into your drive"
+                    m.body = "You stopped completely\(at(p.road)), but braked firmly at the end."
+                    m.tip = "Start slowing a little earlier."
                 }
             case .rolling:
                 m.kind = .rollingStop; m.severity = 0.5
-                m.headline = "Rolling stop — \(into(p.t)) into your drive"
-                m.body = "You slowed to \(EventCopywriter.mph(p.minSpeedMps)) mph but didn't stop completely at the stop sign\(at(p.road))."
-                m.tip = "A full stop means the car stops moving. Count \"one-thousand-one\" before going."
+                m.headline = "Rolling stop, \(into(p.t)) into your drive"
+                m.body = "You slowed to \(EventCopywriter.mph(p.minSpeedMps)) mph but didn't fully stop\(at(p.road))."
+                m.tip = "Stop fully and count \"one-thousand-one\"."
             case .missed:
                 m.kind = .missedStop; m.severity = 0.8
-                m.headline = "Stop sign flagged for review — \(into(p.t)) into your drive"
-                m.body = "Map data shows a stop sign here\(at(p.road)), and you passed at \(EventCopywriter.mph(p.minSpeedMps)) mph. Watch the clip: map data can be wrong."
-                m.tip = "If there was a stop sign, practise stopping at the white line, then creeping forward to see."
+                m.headline = "Stop sign flagged for review, \(into(p.t)) into your drive"
+                m.body = "You passed a mapped stop sign\(at(p.road)) at \(EventCopywriter.mph(p.minSpeedMps)) mph. Check the clip: map data can be wrong."
+                m.tip = "If there was a sign, stop at the white line."
             }
             moments.append(m)
         }
@@ -324,10 +324,10 @@ enum MomentBuilder {
             let secs = Double(e.end - e.start) * s.dt
             moments.append(DriveMoment(kind: .smoothStop, t: s.t[e.start], tEnd: s.t[e.end], severity: 0,
                                        lat: s.lat[e.end], lon: s.lon[e.end],
-                                       headline: "Smooth stop — \(into(s.t[e.start])) into your drive",
+                                       headline: "Smooth stop, \(into(s.t[e.start])) into your drive",
                                        body: String(format: "You came down from %@ mph to a stop over %.0f seconds without a jolt.",
                                                     EventCopywriter.mph(e.vStart), secs),
-                                       tip: "Gentle stops like this save fuel and give the driver behind you time to react."))
+                                       tip: "Gentle stops save fuel."))
         }
         let smoothTurns = SkillAnalyzer.turnEpisodes(s)
             .filter { $0.angle >= 1.05 && $0.peakV >= 6 && $0.peakLat < 2.0 }
@@ -337,10 +337,10 @@ enum MomentBuilder {
             let mid = (t.start + t.end) / 2
             moments.append(DriveMoment(kind: .smoothTurn, t: s.t[t.start], tEnd: s.t[t.end], severity: 0,
                                        lat: s.lat[mid], lon: s.lon[mid],
-                                       headline: "Smooth turn — \(into(s.t[t.start])) into your drive",
+                                       headline: "Smooth turn, \(into(s.t[t.start])) into your drive",
                                        body: String(format: "A %.0f° turn at %@ mph with steady, gentle sideways force.",
                                                     t.angle * 180 / .pi, EventCopywriter.mph(t.peakV)),
-                                       tip: "Slow before the turn, then a light, steady throttle through it — like this."))
+                                       tip: "Slow before the turn, steady through it."))
         }
         return moments.sorted { $0.t < $1.t }
     }
@@ -360,12 +360,12 @@ enum PracticePlanner {
         case .smoothBraking:
             return ("Smooth stops", ["In an empty parking lot, drive toward a cone at 15 mph.",
                                      "Lift off the gas early and let the car coast first.",
-                                     "Squeeze the brake gradually — aim for passengers not to lean forward.",
+                                     "Squeeze the brake gradually so passengers don't lean forward.",
                                      "Ease off the brake slightly just before stopping to avoid the final jolt.",
                                      "Repeat 10 times, then try at 25 mph on a quiet street."])
         case .smoothAcceleration:
             return ("Gentle starts", ["From a full stop, press the gas as if there's an egg under your foot.",
-                                      "Take about 6–8 seconds to reach 25 mph.",
+                                      "Take about 6-8 seconds to reach 25 mph.",
                                       "Repeat at 5 stop signs on a quiet loop."])
         case .turns:
             return ("Slow in, smooth out", ["Finish braking BEFORE the turn begins.",
@@ -374,12 +374,12 @@ enum PracticePlanner {
                                             "Practise 10 right and 10 left turns in a quiet neighbourhood."])
         case .speedControl:
             return ("Hold the limit", ["Before each drive, note the speed limits on your route.",
-                                       "Glance at the speedometer every 5–8 seconds.",
+                                       "Glance at the speedometer every 5-8 seconds.",
                                        "On downhills, ease off early instead of braking late.",
                                        "Practise on one familiar 35 mph road until it's automatic."])
         case .followingDistance:
             return ("The 3-second rule", ["Pick a fixed object the car ahead passes.",
-                                          "Count \"one-thousand-one, two, three\" — you shouldn't reach it before 3.",
+                                          "Count \"one-thousand-one, two, three\". Don't reach it before 3.",
                                           "If you do, ease off and let the gap grow.",
                                           "Add a second in rain or at night."])
         case .stopSigns:
@@ -397,7 +397,7 @@ enum PracticePlanner {
         for (skill, pct) in ranked where pct < 85 && out.count < maxItems {
             let d = drill(for: skill)
             out.append(PracticeFocus(skill: skill, title: d.title,
-                                     why: String(format: "%@ is your lowest skill right now (%.0f%%). %@", skill.title, pct, skill.definition),
+                                     why: String(format: "%@ is your lowest skill (%.0f%%).", skill.title, pct),
                                      steps: d.steps))
         }
         if let night = nightHoursRemaining, night > 0, out.count < maxItems {
@@ -405,16 +405,16 @@ enum PracticePlanner {
                                      why: String(format: "You still need %.1f night hours for your permit log.", night),
                                      steps: ["Plan a familiar route and drive it after sunset with your supervisor.",
                                              "Use low beams; switch to high beams only on empty dark roads.",
-                                             "Leave a 4-second gap — it's harder to judge distance at night."]))
+                                             "Leave a 4-second gap at night."]))
         }
         if out.isEmpty {
             if ranked.isEmpty {
                 out.append(PracticeFocus(skill: nil, title: "Keep driving",
-                                         why: "A few more recorded drives and Driveby can tell you which skill to work on.",
+                                         why: "Record a few drives to find your weakest skill.",
                                          steps: ["Record your next practice drive start to finish."]))
             } else {
                 out.append(PracticeFocus(skill: nil, title: "Level up",
-                                         why: "Every skill is at 85% or better. Time for new situations — with your supervisor.",
+                                         why: "Every skill is at 85% or better. Try new situations with your supervisor.",
                                          steps: ["Merge onto a highway during light traffic.",
                                                  "Drive a new route you've never taken.",
                                                  "Practise in light rain with extra following distance."]))

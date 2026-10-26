@@ -32,7 +32,7 @@ enum PracticeLogPDF {
                 ctx.beginPage()
                 pageNo += 1
                 y = margin
-                ("Driveby — supervised driving log" as NSString).draw(at: CGPoint(x: margin, y: y), withAttributes: title)
+                ("Driveby: supervised driving log" as NSString).draw(at: CGPoint(x: margin, y: y), withAttributes: title)
                 y += 28
                 let who = learner.trimmingCharacters(in: .whitespaces).isEmpty ? "______________________________" : learner
                 ("Learner: \(who)    Requirement: \(fmt(summary.requirement.totalHours)) h total, \(fmt(summary.requirement.nightHours)) h after sunset (\(summary.requirement.label))" as NSString)
@@ -57,7 +57,7 @@ enum PracticeLogPDF {
                 if y > page.height - margin - 150 { newPage() }
                 let cells = ["\(i + 1)", dateF.string(from: e.startedAt), timeF.string(from: e.startedAt),
                              HoursSummary.hoursString(e.durationS), HoursSummary.hoursString(e.nightS),
-                             e.supervisor.isEmpty ? "—" : e.supervisor, e.manual ? "Added by hand" : "Recorded"]
+                             e.supervisor.isEmpty ? "-" : e.supervisor, e.manual ? "Added by hand" : "Recorded"]
                 var x = margin
                 for (n, (text, w)) in zip(cells, cols.map(\.1)).enumerated() {
                     let r = CGRect(x: x, y: y, width: w - 6, height: 14)
@@ -86,7 +86,7 @@ enum PracticeLogPDF {
                 (label as NSString).draw(at: CGPoint(x: x, y: y + 4), withAttributes: small)
             }
             y += 30
-            let note = "Night time is estimated from sunrise/sunset at the drive's start location. This is a personal record to help you complete your state's official driving log (in Virginia, the DMV/driver-education form signed by a parent or guardian); it is not that form. "
+            let note = "Personal record, not the official state log. Night time is estimated from sunset. "
                 + Disclaimer.full
             (note as NSString).draw(with: CGRect(x: margin, y: y, width: page.width - 2 * margin, height: 80),
                                     options: [.usesLineFragmentOrigin], attributes: small, context: nil)

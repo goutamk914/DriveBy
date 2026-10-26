@@ -7,15 +7,15 @@ struct SafetyPoints: View {
 
     private var points: [Point] {
         let shared = [
-            Point(text: "Eyes on the road, hands off the phone. Driveby speaks, so you never need to look."),
-            Point(text: "It can be wrong. Signs, traffic laws and the road always come first."),
+            Point(text: "Eyes on the road, hands off the phone."),
+            Point(text: "It can be wrong. Signs and laws come first."),
         ]
         guard mode == .newDriver else {
-            return [Point(text: "A coach, not a safety system. You're always the driver.")] + shared
+            return [Point(text: "A coach, not a safety system.")] + shared
         }
         return [
-            Point(text: "It doesn't replace your instructor, driver's ed or road test."),
-            Point(text: "Practise only with a licensed adult beside you, as your permit requires."),
+            Point(text: "It doesn't replace your instructor or driver's ed."),
+            Point(text: "Practise only with a licensed adult beside you."),
         ] + shared
     }
 
@@ -86,31 +86,27 @@ struct HowItWorksView: View {
                 Text("Mount the phone, tap Start, and drive normally.").font(.title3)
 
                 Card {
-                    step(1, .blue, "GPS → your speed",
-                         "The same GPS your maps app uses tells Driveby how fast you're going and where.")
-                    step(2, .purple, "Motion sensors → braking & turning",
-                         "Feels what a passenger feels: pushed forward when you brake hard, sideways in a sharp turn.")
-                    step(3, .green, "Map → speed limits & stop signs",
-                         "OpenStreetMap says what the limit is and where the stop signs are.")
-                    step(4, .red, "Camera → replay clips",
-                         "Records the road so you can rewatch a moment, and measures the gap to the car ahead. Faces and plates are blurred first.")
+                    step(1, .blue, "GPS → your speed", "Speed and route.")
+                    step(2, .purple, "Motion sensors → braking & turning", "Hard brakes and sharp turns.")
+                    step(3, .green, "Map → speed limits & stop signs", "From OpenStreetMap.")
+                    step(4, .red, "Camera → replay clips", "Clips and following distance, blurred first.")
                 }
 
                 Card {
                     SectionHeader(title: "While you drive")
-                    Text("Driveby speaks short tips — “Easy on the gas”, “Speed limit is 35” — and shows them in big type, so you never need to read the screen. You can turn the voice off in Settings.")
+                    Text("Short spoken tips. No need to look.")
                         .font(.subheadline)
                 }
 
                 Card {
                     SectionHeader(title: "After you park")
-                    Text("Every moment that mattered is on one timeline — “2:15 Smooth stop”, “5:30 Hard brake” — with its clip, a score and what to practise next.")
+                    Text("A timeline of moments, clips and drills.")
                         .font(.subheadline)
                 }
 
                 Card {
                     SectionHeader(title: "What it can't see")
-                    Text("Your mirrors, signals, head checks or the pedestrian you waited for. Your own judgement — and your instructor — matter more than any app.")
+                    Text("Mirrors, signals or head checks.")
                         .font(.subheadline)
                 }
 
